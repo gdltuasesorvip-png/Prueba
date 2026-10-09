@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Cotizar rápido{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Cotizador rápido de salud</h1>
+    <p class="muted">Calcula la prima de cada plan con los tarifarios por edad, sin entrar a los portales.</p>
+  </div>
+</div>
+{% if not tarifarios %}
+<div class="card"><p>No hay tarifarios activos. {% if user.role == 'admin' %}<a href="/tarifarios/nuevo">Carga el primero</a>.{% else %}Pide al administrador que los cargue.{% endif %}</p></div>
+{% else %}
+<form method="post" action="/cotizar" class="grid-2">
+  <div class="card">
+    <h2>Asegurados</h2>
+    <table class="table editable" id="asegurados">
+      <thead><tr><th>Nombre (opcional)</th><th style="width:120px">Edad</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><input name="aseg_nombre" placeholder="Titular"></td><td><input name="aseg_edad" inputmode="numeric" required placeholder="35"></td><td></td></tr>
+        <tr><td><input name="aseg_nombre" placeholder="Cónyuge"></td><td><input name="aseg_edad" inputmode="numeric"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td></tr>
+        <tr><td><input name="aseg_nombre" placeholder="Hijo/a"></td><td><input name="aseg_edad" inputmode="numeric"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td></tr>
+      </tbody>
+    </table>
+    <button type="button" class="btn btn-sm mt" onclick="addInsured()">+ Agregar asegurado</button>
+    <div class="form mt">
+      <label>Cliente (opcional, para guardar la cotización)
+        <select name="client_id">
+          <option value="">Sin cliente</option>
+          {% for c in clientes %}<option value="{{ c.id }}" {% if cliente_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Planes a comparar</h2>
+    {% for company, label in COMPANIAS.items() %}
+      {% set planes = tarifarios | selectattr('company', 'equalto', company) | list %}
+      <h3 class="muted small">{{ label }}</h3>
+      {% if planes %}
+        {% for t in planes %}
+        <label class="check"><input type="checkbox" name="tariff_id" value="{{ t.id }}" checked> {{ t.plan }} <span class="muted small">({{ t.edad_min }}-{{ t.edad_max }} años{% if t.is_sample %}, ejemplo{% endif %})</span></label>
+        {% endfor %}
+      {% else %}<p class="muted small">Sin tarifarios.</p>{% endif %}
+    {% endfor %}
+    <div class="actions mt"><button class="btn btn-primary">Calcular primas</button></div>
+  </div>
+</form>
+{% endif %}
+<script>
+function addInsured() {
+  const tbody = document.querySelector('#asegurados tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input name="aseg_nombre"></td><td><input name="aseg_edad" inputmode="numeric"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

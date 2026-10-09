@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import auth, config, db, extraction
+from . import auth, config, db, extraction, tarifas
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -22,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent
 async def lifespan(_: FastAPI):
     db.init_db()
     auth.ensure_admin()
+    tarifas.seed_samples()
     yield
 
 
@@ -69,6 +70,15 @@ def fmt_money(value: float | None, currency: str | None = None) -> str:
 
 
 templates.env.filters["money"] = fmt_money
+
+
+def fmt_num(value: float | None) -> str:
+    if value is None:
+        return ""
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
+
+
+templates.env.filters["num"] = fmt_num
 
 
 def _norm(name: str) -> str:
@@ -755,3 +765,231 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code in (403, 404) and "text/html" in request.headers.get("accept", ""):
         return render(request, "error.html", code=exc.status_code, detail=exc.detail, status_code=exc.status_code)
     return Response(content=str(exc.detail), status_code=exc.status_code)
+
+
+# --------------------------------------------------------------------------- tarifarios
+
+
+@app.get("/tarifarios", response_class=HTMLResponse)
+def tarifarios(request: Request, user: dict = Depends(auth.require_user)):
+    rows = tarifas.list_tariffs()
+    return render(request, "tarifarios.html", user=user, tarifarios=rows)
+
+
+@app.get("/tarifarios/nuevo", response_class=HTMLResponse)
+def tarifario_nuevo_form(request: Request, user: dict = Depends(auth.require_admin)):
+    return render(request, "tarifario_form.html", user=user)
+
+
+@app.post("/tarifarios/nuevo")
+def tarifario_nuevo(
+    company: str = Form(...),
+    plan: str = Form(...),
+    moneda: str = Form("USD"),
+    suma_asegurada: str = Form(""),
+    deducible: str = Form(""),
+    vigente_desde: str = Form(""),
+    vigente_hasta: str = Form(""),
+    notes: str = Form(""),
+    user: dict = Depends(auth.require_admin),
+):
+    if company not in config.COMPANIAS or not plan.strip():
+        raise HTTPException(400, "Datos inválidos")
+    ts = db.now_iso()
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO tariffs (company, ramo, plan, moneda, suma_asegurada, deducible, vigente_desde, vigente_hasta, "
+            "notes, created_by, created_at, updated_at) VALUES (?, 'salud', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (company, plan.strip(), moneda.strip() or "USD", suma_asegurada.strip(), deducible.strip(),
+             vigente_desde.strip(), vigente_hasta.strip(), notes.strip(), user["id"], ts, ts),
+        )
+    return redirect(f"/tarifarios/{cur.lastrowid}", "Tarifario creado. Ahora carga los rangos de edad.")
+
+
+def _get_tariff_or_404(tariff_id: int) -> dict[str, Any]:
+    t = tarifas.get_tariff(tariff_id)
+    if t is None:
+        raise HTTPException(404, "Tarifario no encontrado")
+    return t
+
+
+@app.get("/tarifarios/{tariff_id}", response_class=HTMLResponse)
+def tarifario_detalle(request: Request, tariff_id: int, user: dict = Depends(auth.require_user)):
+    t = _get_tariff_or_404(tariff_id)
+    return render(request, "tarifario_detalle.html", user=user, t=t)
+
+
+@app.post("/tarifarios/{tariff_id}/editar")
+async def tarifario_editar(request: Request, tariff_id: int, user: dict = Depends(auth.require_admin)):
+    _get_tariff_or_404(tariff_id)
+    form = await request.form()
+    get = lambda k: str(form.get(k, "")).strip()  # noqa: E731
+    coberturas = []
+    for line in get("coberturas").splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if not parts or not parts[0]:
+            continue
+        coberturas.append(
+            {
+                "nombre": parts[0],
+                "suma_asegurada": parts[1] if len(parts) > 1 and parts[1] else None,
+                "detalle": parts[2] if len(parts) > 2 and parts[2] else None,
+            }
+        )
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE tariffs SET plan=?, moneda=?, suma_asegurada=?, deducible=?, vigente_desde=?, vigente_hasta=?, "
+            "notes=?, coberturas=?, is_sample=0, updated_at=? WHERE id=?",
+            (get("plan") or "Sin nombre", get("moneda") or "USD", get("suma_asegurada"), get("deducible"),
+             get("vigente_desde"), get("vigente_hasta"), get("notes"),
+             json.dumps(coberturas, ensure_ascii=False), db.now_iso(), tariff_id),
+        )
+    return redirect(f"/tarifarios/{tariff_id}", "Tarifario actualizado")
+
+
+@app.post("/tarifarios/{tariff_id}/bandas")
+async def tarifario_bandas(request: Request, tariff_id: int, user: dict = Depends(auth.require_admin)):
+    _get_tariff_or_404(tariff_id)
+    form = await request.form()
+    mins, maxs, primas = form.getlist("edad_min"), form.getlist("edad_max"), form.getlist("prima")
+    bands = []
+    for i in range(len(mins)):
+        a, b = tarifas.parse_number(str(mins[i])), tarifas.parse_number(str(maxs[i]) if i < len(maxs) else "")
+        p = tarifas.parse_number(str(primas[i]) if i < len(primas) else "")
+        if a is None and b is None and p is None:
+            continue
+        if a is None or b is None or p is None:
+            return redirect(f"/tarifarios/{tariff_id}", f"La fila {i + 1} está incompleta", "error")
+        bands.append((int(a), int(b), p))
+    errors = tarifas.validate_bands(bands)
+    if errors:
+        return redirect(f"/tarifarios/{tariff_id}", "; ".join(errors), "error")
+    tarifas.save_bands(tariff_id, bands)
+    with db.get_conn() as conn:
+        conn.execute("UPDATE tariffs SET is_sample=0 WHERE id=?", (tariff_id,))
+    return redirect(f"/tarifarios/{tariff_id}", "Rangos de edad guardados")
+
+
+@app.post("/tarifarios/{tariff_id}/importar")
+async def tarifario_importar(tariff_id: int, file: UploadFile = File(...), user: dict = Depends(auth.require_admin)):
+    _get_tariff_or_404(tariff_id)
+    content = await file.read()
+    bands, errors = tarifas.parse_bands_csv(content)
+    errors += tarifas.validate_bands(bands)
+    if not bands:
+        return redirect(f"/tarifarios/{tariff_id}", "No se encontraron rangos en el archivo. Usa columnas: edad mínima, edad máxima, prima.", "error")
+    if errors:
+        return redirect(f"/tarifarios/{tariff_id}", "; ".join(errors[:5]), "error")
+    tarifas.save_bands(tariff_id, bands)
+    with db.get_conn() as conn:
+        conn.execute("UPDATE tariffs SET is_sample=0 WHERE id=?", (tariff_id,))
+    return redirect(f"/tarifarios/{tariff_id}", f"Se importaron {len(bands)} rangos de edad")
+
+
+@app.post("/tarifarios/{tariff_id}/estado")
+def tarifario_estado(tariff_id: int, active: int = Form(...), user: dict = Depends(auth.require_admin)):
+    _get_tariff_or_404(tariff_id)
+    with db.get_conn() as conn:
+        conn.execute("UPDATE tariffs SET active=?, updated_at=? WHERE id=?", (1 if active else 0, db.now_iso(), tariff_id))
+    return redirect(f"/tarifarios/{tariff_id}", "Estado actualizado")
+
+
+@app.post("/tarifarios/{tariff_id}/eliminar")
+def tarifario_eliminar(tariff_id: int, user: dict = Depends(auth.require_admin)):
+    _get_tariff_or_404(tariff_id)
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM tariff_bands WHERE tariff_id=?", (tariff_id,))
+        conn.execute("DELETE FROM tariffs WHERE id=?", (tariff_id,))
+    return redirect("/tarifarios", "Tarifario eliminado")
+
+
+# --------------------------------------------------------------------------- cotizador rápido
+
+
+def _parse_insureds(form) -> list[dict[str, Any]]:
+    nombres, edades = form.getlist("aseg_nombre"), form.getlist("aseg_edad")
+    insureds = []
+    for i, edad in enumerate(edades):
+        age = tarifas.parse_number(str(edad))
+        if age is None:
+            continue
+        nombre = str(nombres[i]).strip() if i < len(nombres) else ""
+        insureds.append({"nombre": nombre or f"Asegurado {len(insureds) + 1}", "edad": int(age)})
+    return insureds
+
+
+@app.get("/cotizar", response_class=HTMLResponse)
+def cotizar_form(request: Request, cliente: int | None = None, user: dict = Depends(auth.require_user)):
+    with db.get_conn() as conn:
+        clientes_ = db.rows_to_list(conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall())
+    return render(
+        request, "cotizar.html", user=user, clientes=clientes_, cliente_id=cliente,
+        tarifarios=tarifas.list_tariffs(only_active=True),
+    )
+
+
+@app.post("/cotizar", response_class=HTMLResponse)
+async def cotizar(request: Request, user: dict = Depends(auth.require_user)):
+    form = await request.form()
+    insureds = _parse_insureds(form)
+    tariff_ids = [int(x) for x in form.getlist("tariff_id") if str(x).isdigit()]
+    client_id = tarifas.parse_number(str(form.get("client_id", "")))
+    if not insureds:
+        return redirect("/cotizar", "Indica la edad de al menos un asegurado", "error")
+    if not tariff_ids:
+        return redirect("/cotizar", "Selecciona al menos un plan", "error")
+    results = tarifas.quick_quote(insureds, tariff_ids)
+    complete = [r for r in results if r["complete"]]
+    cheapest_id = min(complete, key=lambda r: r["total"])["id"] if len(complete) > 1 else None
+    cliente = None
+    if client_id:
+        with db.get_conn() as conn:
+            cliente = db.row_to_dict(conn.execute("SELECT * FROM clients WHERE id=?", (int(client_id),)).fetchone())
+    return render(
+        request, "cotizar_resultado.html", user=user, insureds=insureds, results=results,
+        cheapest_id=cheapest_id, cliente=cliente, matrix=tarifas.coverage_matrix(results),
+        payload=json.dumps({"insureds": insureds, "tariff_ids": tariff_ids}),
+    )
+
+
+@app.post("/cotizar/guardar")
+def cotizar_guardar(
+    payload: str = Form(...),
+    client_id: int = Form(...),
+    title: str = Form(""),
+    user: dict = Depends(auth.require_user),
+):
+    try:
+        data = json.loads(payload)
+        insureds = [{"nombre": str(p["nombre"]), "edad": int(p["edad"])} for p in data["insureds"]]
+        tariff_ids = [int(x) for x in data["tariff_ids"]]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(400, "Datos inválidos")
+    results = tarifas.quick_quote(insureds, tariff_ids)
+    with db.get_conn() as conn:
+        cliente = conn.execute("SELECT name FROM clients WHERE id=?", (client_id,)).fetchone()
+        if cliente is None:
+            raise HTTPException(400, "Cliente inválido")
+        ts = db.now_iso()
+        desc = ", ".join(f"{p['nombre']} ({p['edad']} años)" for p in insureds)
+        cur = conn.execute(
+            "INSERT INTO comparisons (client_id, ramo, title, notes, created_by, created_at, updated_at) "
+            "VALUES (?, 'salud', ?, ?, ?, ?, ?)",
+            (client_id, title.strip() or f"Salud (tarifario) - {cliente['name']}",
+             f"Cotización preliminar por tarifario. Asegurados: {desc}", user["id"], ts, ts),
+        )
+        comp_id = int(cur.lastrowid)
+        for r in results:
+            detalle = "; ".join(
+                f"{l['nombre']} ({l['edad']} años): {fmt_money(l['prima'], r['moneda']) if l['prima'] is not None else 'fuera de rango'}"
+                for l in r["lines"]
+            )
+            conn.execute(
+                "INSERT INTO quotes (comparison_id, company, plan, moneda, prima_anual, suma_asegurada, deducible, "
+                "coberturas, exclusiones, observaciones, extraction_status, uploaded_by, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 'manual', ?, ?, ?)",
+                (comp_id, r["company"], r["plan"], r["moneda"], r["total"], r["suma_asegurada"], r["deducible"],
+                 json.dumps(r["coberturas"], ensure_ascii=False),
+                 f"Preliminar según tarifario. Detalle: {detalle}", user["id"], ts, ts),
+            )
+    return redirect(f"/cotizaciones/{comp_id}", "Cotización preliminar guardada en la comparativa del cliente")

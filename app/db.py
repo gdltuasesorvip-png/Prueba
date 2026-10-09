@@ -71,6 +71,34 @@ CREATE TABLE IF NOT EXISTS quotes (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tariffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company TEXT NOT NULL,
+    ramo TEXT NOT NULL DEFAULT 'salud',
+    plan TEXT NOT NULL,
+    moneda TEXT NOT NULL DEFAULT 'USD',
+    suma_asegurada TEXT,
+    deducible TEXT,
+    coberturas TEXT NOT NULL DEFAULT '[]',
+    notes TEXT,
+    vigente_desde TEXT,
+    vigente_hasta TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    is_sample INTEGER NOT NULL DEFAULT 0,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tariff_bands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tariff_id INTEGER NOT NULL REFERENCES tariffs(id) ON DELETE CASCADE,
+    edad_min INTEGER NOT NULL,
+    edad_max INTEGER NOT NULL,
+    prima_anual REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bands_tariff ON tariff_bands(tariff_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_comparison ON quotes(comparison_id);
 CREATE INDEX IF NOT EXISTS idx_comparisons_client ON comparisons(client_id);
 """

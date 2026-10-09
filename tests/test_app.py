@@ -182,3 +182,92 @@ def test_user_management(client):
     client.post("/logout")
     r = client.post("/login", data={"username": "maria", "password": "nueva123"})
     assert "incorrectos" in r.text
+
+
+def test_tarifarios_and_quick_quote(client):
+    login(client)
+    r = client.get("/tarifarios")
+    assert "EJEMPLO" in r.text and "Mercantil Seguros" in r.text
+
+    # Crear tarifario y cargar rangos a mano
+    r = client.post(
+        "/tarifarios/nuevo",
+        data={"company": "hispana", "plan": "Hispana Premium", "moneda": "USD", "suma_asegurada": "USD 120.000"},
+        follow_redirects=False,
+    )
+    tid = int(r.headers["location"].rsplit("/", 1)[1])
+    r = client.post(
+        f"/tarifarios/{tid}/bandas",
+        data={"edad_min": ["0", "18", "41"], "edad_max": ["17", "40", "65"], "prima": ["300", "550,50", "900"]},
+        follow_redirects=True,
+    )
+    assert "Rangos de edad guardados" in r.text
+    # Rangos solapados se rechazan
+    r = client.post(
+        f"/tarifarios/{tid}/bandas",
+        data={"edad_min": ["0", "10"], "edad_max": ["17", "40"], "prima": ["300", "550"]},
+        follow_redirects=True,
+    )
+    assert "se solapan" in r.text
+    # Importar CSV
+    csv_data = "edad_min;edad_max;prima\n0;17;310\n18;40;560\n41;70;950\n"
+    r = client.post(
+        f"/tarifarios/{tid}/importar",
+        files={"file": ("tarifa.csv", io.BytesIO(csv_data.encode()), "text/csv")},
+        follow_redirects=True,
+    )
+    assert "Se importaron 3 rangos" in r.text
+    t = main.tarifas.get_tariff(tid)
+    assert [b["prima_anual"] for b in t["bands"]] == [310, 560, 950]
+    assert t["is_sample"] == 0
+    # Coberturas por líneas
+    r = client.post(
+        f"/tarifarios/{tid}/editar",
+        data={"plan": "Hispana Premium", "moneda": "USD", "coberturas": "Hospitalización | USD 120.000\nMaternidad | USD 4.000 | Espera 10 meses"},
+        follow_redirects=True,
+    )
+    assert main.tarifas.get_tariff(tid)["coberturas"][1]["detalle"] == "Espera 10 meses"
+
+    # Cotizar: titular 35, hijo 8, abuelo 80 (fuera de rango en Hispana Premium)
+    r = client.post("/clientes/nuevo", data={"name": "Familia Gómez"}, follow_redirects=False)
+    client_id = int(r.headers["location"].rsplit("/", 1)[1])
+    all_ids = [t["id"] for t in main.tarifas.list_tariffs(only_active=True)]
+    r = client.post(
+        "/cotizar",
+        data={
+            "aseg_nombre": ["Pedro", "Ana", ""],
+            "aseg_edad": ["35", "8", "80"],
+            "tariff_id": [str(i) for i in all_ids],
+            "client_id": str(client_id),
+        },
+    )
+    assert r.status_code == 200
+    assert "Fuera de rango" in r.text and "Hispana Premium" in r.text
+    assert "Asegurado 3" in r.text
+    # Total Hispana Premium: 560 + 310 + fuera de rango → sin total; Mercantil ejemplo: 780+520+2400? (80 fuera de rango también)
+    results = main.tarifas.quick_quote(
+        [{"nombre": "Pedro", "edad": 35}, {"nombre": "Ana", "edad": 8}], [tid]
+    )
+    assert results[0]["total"] == 870.0 and results[0]["complete"]
+
+    # Guardar como comparativa
+    payload = '{"insureds": [{"nombre": "Pedro", "edad": 35}, {"nombre": "Ana", "edad": 8}], "tariff_ids": [%d]}' % tid
+    r = client.post("/cotizar/guardar", data={"payload": payload, "client_id": client_id}, follow_redirects=False)
+    comp_id = int(r.headers["location"].rsplit("/", 1)[1])
+    comp = main.load_comparison(comp_id)
+    assert comp["quotes"][0]["prima_anual"] == 870.0
+    assert "Pedro (35 años)" in comp["quotes"][0]["observaciones"]
+    assert comp["quotes"][0]["coberturas"][0]["nombre"] == "Hospitalización"
+
+    # El agente no puede editar tarifarios
+    client.post("/logout")
+    client.post("/usuarios/nuevo")  # sin sesión: redirige
+    login(client)
+    client.post("/usuarios/nuevo", data={"username": "pepe", "full_name": "Pepe", "password": "clave123", "role": "agente"})
+    client.post("/logout")
+    login(client, "pepe", "clave123")
+    r = client.post(f"/tarifarios/{tid}/bandas", data={"edad_min": ["0"], "edad_max": ["99"], "prima": ["1"]})
+    assert r.status_code == 403
+    r = client.get(f"/tarifarios/{tid}")
+    assert r.status_code == 200 and "Guardar rangos" not in r.text
+    client.post("/logout")

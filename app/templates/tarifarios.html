@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Tarifarios{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Tarifarios por edad</h1>
+    <p class="muted">Primas anuales por rango de edad de cada plan de salud. Con ellas funciona el cotizador rápido.</p>
+  </div>
+  {% if user.role == 'admin' %}<a class="btn btn-primary" href="/tarifarios/nuevo">+ Nuevo tarifario</a>{% endif %}
+</div>
+{% if tarifarios | selectattr('is_sample') | list %}
+<div class="flash flash-warn">Los tarifarios marcados como <strong>EJEMPLO</strong> tienen primas inventadas para probar la pantalla. No son tarifas reales: reemplázalos con los tarifarios de cada compañía.</div>
+{% endif %}
+<div class="card">
+  {% if tarifarios %}
+  <table class="table">
+    <thead><tr><th>Compañía</th><th>Plan</th><th>Moneda</th><th>Edades</th><th>Rangos</th><th>Vigencia</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for t in tarifarios %}
+      <tr>
+        <td><strong>{{ t.company_label }}</strong></td>
+        <td><a href="/tarifarios/{{ t.id }}">{{ t.plan }}</a>{% if t.is_sample %} <span class="pill pill-pendiente">EJEMPLO</span>{% endif %}</td>
+        <td>{{ t.moneda }}</td>
+        <td>{% if t.n_bands %}{{ t.edad_min }} a {{ t.edad_max }} años{% else %}<span class="muted">sin rangos</span>{% endif %}</td>
+        <td>{{ t.n_bands }}</td>
+        <td>{{ t.vigente_desde or '—' }}{% if t.vigente_hasta %} → {{ t.vigente_hasta }}{% endif %}</td>
+        <td><span class="pill pill-{{ 'ok' if t.active else 'error' }}">{{ 'Activo' if t.active else 'Inactivo' }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No hay tarifarios cargados.</p>{% endif %}
+</div>
+{% endblock %}

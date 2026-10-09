@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ t.plan }}{% endblock %}
+{% block content %}
+{% set admin = user.role == 'admin' %}
+<div class="page-head">
+  <div>
+    <h1>{{ t.company_label }} · {{ t.plan }} {% if t.is_sample %}<span class="pill pill-pendiente">EJEMPLO</span>{% endif %} <span class="pill pill-{{ 'ok' if t.active else 'error' }}">{{ 'Activo' if t.active else 'Inactivo' }}</span></h1>
+    <p class="muted"><a href="/tarifarios">Tarifarios</a> · {{ t.ramo_label }} · {{ t.moneda }} · actualizado {{ t.updated_at[:10] }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/cotizar">Cotizar con este plan</a>
+    {% if admin %}
+    <form method="post" action="/tarifarios/{{ t.id }}/estado"><input type="hidden" name="active" value="{{ 0 if t.active else 1 }}"><button class="btn">{{ 'Desactivar' if t.active else 'Activar' }}</button></form>
+    <form method="post" action="/tarifarios/{{ t.id }}/eliminar"><button class="btn btn-danger" onclick="return confirm('¿Eliminar este tarifario?')">Eliminar</button></form>
+    {% endif %}
+  </div>
+</div>
+{% if t.is_sample %}<div class="flash flash-warn">Este tarifario es de ejemplo. Al guardar cualquier cambio deja de marcarse como ejemplo.</div>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Primas anuales por rango de edad</h2>
+    {% if admin %}
+    <form method="post" action="/tarifarios/{{ t.id }}/bandas">
+      <table class="table editable" id="bandas">
+        <thead><tr><th>Edad desde</th><th>Edad hasta</th><th>Prima anual ({{ t.moneda }})</th><th></th></tr></thead>
+        <tbody>
+        {% for b in t.bands %}
+          <tr><td><input name="edad_min" value="{{ b.edad_min }}" inputmode="numeric"></td><td><input name="edad_max" value="{{ b.edad_max }}" inputmode="numeric"></td><td><input name="prima" value="{{ b.prima_anual | num }}" inputmode="decimal"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td></tr>
+        {% endfor %}
+        {% for _ in range(2) %}
+          <tr><td><input name="edad_min" inputmode="numeric" placeholder="desde"></td><td><input name="edad_max" inputmode="numeric" placeholder="hasta"></td><td><input name="prima" inputmode="decimal" placeholder="prima"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="actions mt">
+        <button type="button" class="btn btn-sm" onclick="addBand()">+ Agregar rango</button>
+        <button class="btn btn-primary">Guardar rangos</button>
+      </div>
+    </form>
+    <details class="mt">
+      <summary>Importar desde CSV o Excel guardado como CSV</summary>
+      <p class="muted small">Tres columnas: edad mínima, edad máxima, prima anual. Una fila por rango. La cabecera es opcional.</p>
+      <form method="post" action="/tarifarios/{{ t.id }}/importar" enctype="multipart/form-data" class="form inline">
+        <input type="file" name="file" accept=".csv,text/csv" required>
+        <button class="btn">Importar</button>
+      </form>
+    </details>
+    {% else %}
+    <table class="table">
+      <thead><tr><th>Edad desde</th><th>Edad hasta</th><th>Prima anual</th></tr></thead>
+      <tbody>{% for b in t.bands %}<tr><td>{{ b.edad_min }}</td><td>{{ b.edad_max }}</td><td>{{ b.prima_anual | money(t.moneda) }}</td></tr>{% else %}<tr><td colspan="3" class="muted">Sin rangos cargados</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Datos del plan</h2>
+    {% if admin %}
+    <form method="post" action="/tarifarios/{{ t.id }}/editar" class="form">
+      <label>Nombre del plan <input name="plan" value="{{ t.plan }}" required></label>
+      <div class="grid-2">
+        <label>Moneda <input name="moneda" value="{{ t.moneda }}"></label>
+        <label>Suma asegurada <input name="suma_asegurada" value="{{ t.suma_asegurada or '' }}"></label>
+        <label>Deducible <input name="deducible" value="{{ t.deducible or '' }}"></label>
+        <label>Vigente desde <input name="vigente_desde" type="date" value="{{ t.vigente_desde or '' }}"></label>
+        <label>Vigente hasta <input name="vigente_hasta" type="date" value="{{ t.vigente_hasta or '' }}"></label>
+      </div>
+      <label>Coberturas (una por línea: <code>nombre | límite | detalle</code>)
+        <textarea name="coberturas" rows="6">{% for c in t.coberturas %}{{ c.nombre }}{% if c.suma_asegurada or c.detalle %} | {{ c.suma_asegurada or '' }}{% endif %}{% if c.detalle %} | {{ c.detalle }}{% endif %}
+{% endfor %}</textarea>
+      </label>
+      <label>Notas <textarea name="notes" rows="2">{{ t.notes or '' }}</textarea></label>
+      <button class="btn btn-primary">Guardar datos</button>
+    </form>
+    {% else %}
+    <p><strong>Suma asegurada:</strong> {{ t.suma_asegurada or '—' }}<br><strong>Deducible:</strong> {{ t.deducible or '—' }}<br><strong>Vigencia:</strong> {{ t.vigente_desde or '—' }}{% if t.vigente_hasta %} → {{ t.vigente_hasta }}{% endif %}</p>
+    <h3>Coberturas</h3>
+    <ul class="plain">{% for c in t.coberturas %}<li>{{ c.nombre }}{% if c.suma_asegurada %}: {{ c.suma_asegurada }}{% endif %}{% if c.detalle %} <span class="muted">({{ c.detalle }})</span>{% endif %}</li>{% else %}<li class="muted">Sin coberturas cargadas</li>{% endfor %}</ul>
+    {% if t.notes %}<p class="muted">{{ t.notes }}</p>{% endif %}
+    {% endif %}
+  </div>
+</div>
+<script>
+function addBand() {
+  const tbody = document.querySelector('#bandas tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input name="edad_min" inputmode="numeric"></td><td><input name="edad_max" inputmode="numeric"></td><td><input name="prima" inputmode="decimal"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

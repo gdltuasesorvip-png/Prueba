@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Resultado{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Primas calculadas</h1>
+    <p class="muted">{{ insureds | map(attribute='nombre') | join(', ') }} · {{ insureds | length }} asegurado{{ 's' if insureds | length != 1 }}{% if cliente %} · cliente {{ cliente.name }}{% endif %}</p>
+  </div>
+  <a class="btn" href="/cotizar">Nueva consulta</a>
+</div>
+{% if results | selectattr('is_sample') | list %}<div class="flash flash-warn">Incluye tarifarios de EJEMPLO con primas inventadas.</div>{% endif %}
+<div class="card">
+  <div class="table-wrap">
+  <table class="table compare">
+    <thead><tr><th></th>{% for r in results %}<th class="{% if r.id == cheapest_id %}best{% endif %}">{{ r.company_label }}<br><small style="color:var(--muted);text-transform:none">{{ r.plan }}</small>{% if r.id == cheapest_id %}<small>menor prima</small>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for p in insureds %}
+      {% set i = loop.index0 %}
+      <tr><th>{{ p.nombre }} <span class="muted">({{ p.edad }} años)</span></th>
+        {% for r in results %}<td>{% set l = r.lines[i] %}{% if l.prima is not none %}{{ l.prima | money(r.moneda) }}{% else %}<span class="pill pill-error">Fuera de rango</span>{% endif %}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+      <tr class="hl"><th>Prima anual total</th>{% for r in results %}<td class="{% if r.id == cheapest_id %}best{% endif %}"><strong>{{ r.total | money(r.moneda) if r.complete else '—' }}</strong></td>{% endfor %}</tr>
+      <tr><th>Mensual aproximado</th>{% for r in results %}<td>{{ (r.total / 12) | money(r.moneda) if r.complete else '—' }}</td>{% endfor %}</tr>
+      <tr><th>Suma asegurada</th>{% for r in results %}<td>{{ r.suma_asegurada or '—' }}</td>{% endfor %}</tr>
+      <tr><th>Deducible</th>{% for r in results %}<td>{{ r.deducible or '—' }}</td>{% endfor %}</tr>
+      {% if matrix %}
+      <tr class="section"><th colspan="{{ results | length + 1 }}">Coberturas</th></tr>
+      {% for row in matrix %}
+      <tr><th>{{ row.nombre }}</th>{% for r in results %}{% set c = row.por_tarifa.get(r.id) %}<td>{% if c %}{{ c.suma_asegurada or 'Incluida' }}{% if c.detalle %}<br><small class="muted">{{ c.detalle }}</small>{% endif %}{% else %}<span class="muted">No indica</span>{% endif %}</td>{% endfor %}</tr>
+      {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small mt">Primas preliminares calculadas con los tarifarios cargados. La cotización formal la emite cada aseguradora.</p>
+</div>
+<div class="card">
+  <h2>Guardar en el historial del cliente</h2>
+  <form method="post" action="/cotizar/guardar" class="form inline">
+    <input type="hidden" name="payload" value='{{ payload }}'>
+    {% if cliente %}
+      <input type="hidden" name="client_id" value="{{ cliente.id }}">
+      <input name="title" placeholder="Título (opcional)">
+      <button class="btn btn-primary">Guardar como comparativa de {{ cliente.name }}</button>
+    {% else %}
+      <span class="muted">Para guardarla, vuelve y elige un cliente.</span>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

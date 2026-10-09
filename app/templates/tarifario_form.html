@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Nuevo tarifario{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Nuevo tarifario</h1>
+  <form method="post" class="form">
+    <label>Compañía
+      <select name="company">{% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Nombre del plan <input name="plan" required placeholder="Por ejemplo: Salud Integral Oro"></label>
+    <label>Moneda <input name="moneda" value="USD"></label>
+    <label>Suma asegurada <input name="suma_asegurada" placeholder="USD 80.000"></label>
+    <label>Deducible <input name="deducible" placeholder="USD 100 por evento"></label>
+    <div class="grid-2">
+      <label>Vigente desde <input name="vigente_desde" type="date"></label>
+      <label>Vigente hasta <input name="vigente_hasta" type="date"></label>
+    </div>
+    <label>Notas <textarea name="notes" rows="2"></textarea></label>
+    <div class="actions">
+      <button class="btn btn-primary">Crear</button>
+      <a class="btn btn-ghost" href="/tarifarios">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

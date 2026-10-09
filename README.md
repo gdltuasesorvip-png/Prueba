@@ -13,6 +13,17 @@ Las aseguradoras no ofrecen API ni tarifas digitales, así que el flujo es:
    el análisis con ventajas, desventajas y recomendación.
 5. La "vista para el cliente" se imprime o se guarda como PDF para enviarla.
 
+### Cotizador rápido por tarifario
+
+Además de los PDFs, la app tiene **tarifarios por rango de edad** para salud. El administrador carga,
+por compañía y plan, la prima anual de cada rango (a mano o importando un CSV con tres columnas:
+edad mínima, edad máxima, prima). Con ellos cualquier agente usa el **cotizador rápido**: indica la edad
+de cada asegurado y obtiene al instante la prima de cada plan, sin entrar a los portales. El resultado se
+puede guardar como comparativa preliminar en el historial del cliente.
+
+Al arrancar por primera vez se cargan tres tarifarios de **EJEMPLO** con primas inventadas, solo para
+probar la pantalla. Reemplázalos con los tarifarios reales.
+
 Incluye usuarios con clave y dos roles: **administrador** (crea y desactiva usuarios, restablece claves,
 elimina comparativas) y **agente** (clientes, comparativas y cotizaciones).
 
@@ -64,6 +75,7 @@ pytest
 app/
   main.py         rutas web (login, clientes, comparativas, cotizaciones, usuarios)
   extraction.py   lectura de PDFs y análisis comparativo con Claude
+  tarifas.py      tarifarios por edad y cotizador rápido
   db.py           esquema SQLite
   auth.py         usuarios, claves y sesiones
   templates/      páginas HTML
