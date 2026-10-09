@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Nuevo usuario{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Nuevo usuario</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Usuario (para iniciar sesión) <input name="username" required pattern="[a-zA-Z0-9._-]+" autocomplete="off"></label>
+    <label>Nombre completo <input name="full_name" required></label>
+    <label>Clave inicial <input name="password" type="password" required minlength="6" autocomplete="new-password"></label>
+    <label>Rol
+      <select name="role">
+        <option value="agente">Agente (cotiza y compara)</option>
+        <option value="admin">Administrador (además gestiona usuarios)</option>
+      </select>
+    </label>
+    <div class="actions">
+      <button class="btn btn-primary">Crear usuario</button>
+      <a class="btn btn-ghost" href="/usuarios">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

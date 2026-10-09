@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ comp.title }}{% endblock %}
+{% block head %}{% if comp.pending %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ comp.title }} <span class="pill pill-{{ comp.status }}">{{ comp.status }}</span></h1>
+    <p class="muted">
+      <a href="/clientes/{{ comp.client_id }}">{{ comp.client_name }}</a>
+      {% if comp.client_document %}· {{ comp.client_document }}{% endif %}
+      · <span class="tag tag-{{ comp.ramo }}">{{ comp.ramo_label }}</span>
+      · creada por {{ comp.created_by_name or '—' }} el {{ comp.created_at[:10] }}
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/cotizaciones/{{ comp.id }}/imprimir" target="_blank">Vista para el cliente</a>
+  </div>
+</div>
+
+{% if comp.pending %}<div class="flash flash-info">Claude está procesando… esta página se actualiza sola cada pocos segundos.</div>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Subir cotización en PDF</h2>
+    <form method="post" action="/cotizaciones/{{ comp.id }}/subir" enctype="multipart/form-data" class="form">
+      <label>Compañía
+        <select name="company" required>
+          {% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Archivo PDF <input type="file" name="file" accept="application/pdf" required></label>
+      <button class="btn btn-primary">Subir y leer con Claude</button>
+    </form>
+    <details class="mt">
+      <summary>O cargar los datos a mano</summary>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/manual" class="form inline">
+        <select name="company">
+          {% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+        <button class="btn">Agregar manual</button>
+      </form>
+    </details>
+  </div>
+  <div class="card">
+    <h2>Datos de la comparativa</h2>
+    <form method="post" action="/cotizaciones/{{ comp.id }}/actualizar" class="form">
+      <label>Título <input name="title" value="{{ comp.title }}"></label>
+      <label>Notas internas <textarea name="notes" rows="3">{{ comp.notes or '' }}</textarea></label>
+      <label>Estado
+        <select name="status">
+          <option value="abierta" {% if comp.status == 'abierta' %}selected{% endif %}>Abierta</option>
+          <option value="cerrada" {% if comp.status == 'cerrada' %}selected{% endif %}>Cerrada</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button class="btn">Guardar</button>
+        {% if user.role == 'admin' %}
+        <button class="btn btn-danger" formaction="/cotizaciones/{{ comp.id }}/eliminar" onclick="return confirm('¿Eliminar esta comparativa y sus PDFs?')">Eliminar comparativa</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Cotizaciones recibidas</h2>
+  {% if comp.quotes %}
+  <table class="table">
+    <thead><tr><th>Compañía</th><th>Plan</th><th>Prima anual</th><th>Estado</th><th>PDF</th><th></th></tr></thead>
+    <tbody>
+    {% for q in comp.quotes %}
+      <tr>
+        <td><strong>{{ q.company_label }}</strong></td>
+        <td>{{ q.plan or '—' }}</td>
+        <td>{{ q.prima_anual | money(q.moneda) }}</td>
+        <td>
+          {% if q.extraction_status == 'pendiente' %}<span class="pill pill-pendiente">Leyendo…</span>
+          {% elif q.extraction_status == 'ok' %}<span class="pill pill-ok">Leído{% if q.confianza %} · confianza {{ q.confianza }}{% endif %}</span>
+          {% elif q.extraction_status == 'manual' %}<span class="pill pill-manual">Manual</span>
+          {% else %}<span class="pill pill-error" title="{{ q.extraction_error }}">Error</span> <small class="muted">{{ q.extraction_error }}</small>{% endif %}
+        </td>
+        <td>{% if q.file_path %}<a href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/pdf" target="_blank">{{ q.original_filename or 'Ver PDF' }}</a>{% else %}—{% endif %}</td>
+        <td class="row-actions">
+          <a class="btn btn-sm" href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/editar">Editar</a>
+          {% if q.file_path and q.extraction_status != 'pendiente' %}
+          <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/reprocesar"><button class="btn btn-sm">Releer</button></form>
+          {% endif %}
+          <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/eliminar"><button class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar esta cotización?')">Eliminar</button></form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Todavía no hay cotizaciones. Sube el PDF de cada compañía.</p>{% endif %}
+</div>
+
+{% set ready = comp.quotes | selectattr('extraction_status', 'in', ['ok', 'manual']) | list %}
+{% if ready %}
+<div class="card">
+  <h2>Comparativa</h2>
+  {% include "_tabla_comparativa.html" %}
+</div>
+
+<div class="card">
+  <div class="page-head">
+    <h2>Análisis comparativo</h2>
+    <form method="post" action="/cotizaciones/{{ comp.id }}/analisis">
+      <button class="btn btn-primary" {% if ready | length < 2 or comp.analysis_status == 'procesando' %}disabled{% endif %}>
+        {{ 'Regenerar análisis' if comp.analysis else 'Generar análisis con Claude' }}
+      </button>
+    </form>
+  </div>
+  {% if comp.analysis_status == 'procesando' %}<p class="muted">Generando…</p>
+  {% elif comp.analysis_status == 'error' %}<div class="flash flash-error">{{ comp.analysis_error }}</div>{% endif %}
+  {% if comp.analysis %}<pre class="analysis">{{ comp.analysis }}</pre>
+  {% elif ready | length < 2 %}<p class="muted">Necesitas al menos dos cotizaciones con datos para generar el análisis.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

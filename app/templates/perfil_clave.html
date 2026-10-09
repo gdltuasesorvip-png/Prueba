@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Cambiar clave{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Cambiar mi clave</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Clave actual <input name="current" type="password" required autocomplete="current-password"></label>
+    <label>Clave nueva <input name="password" type="password" required minlength="6" autocomplete="new-password"></label>
+    <label>Repetir clave nueva <input name="confirm" type="password" required minlength="6" autocomplete="new-password"></label>
+    <div class="actions">
+      <button class="btn btn-primary">Guardar</button>
+      <a class="btn btn-ghost" href="/">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Editar {{ q.company_label }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ q.company_label }}</h1>
+    <p class="muted"><a href="/cotizaciones/{{ comp.id }}">{{ comp.title }}</a> · {{ comp.client_name }} · {{ comp.ramo_label }}</p>
+  </div>
+  {% if q.file_path %}<a class="btn" href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/pdf" target="_blank">Ver PDF</a>{% endif %}
+</div>
+{% if q.extraction_status == 'error' %}<div class="flash flash-error">{{ q.extraction_error }}</div>{% endif %}
+<form method="post" class="form card">
+  <input type="hidden" name="extraction_status" value="{{ 'ok' if q.extraction_status == 'ok' else 'manual' }}">
+  <div class="grid-3">
+    <label>Plan <input name="plan" value="{{ q.plan or '' }}"></label>
+    <label>Moneda <input name="moneda" value="{{ q.moneda or '' }}" placeholder="USD"></label>
+    <label>Fecha de cotización <input name="fecha_cotizacion" value="{{ q.fecha_cotizacion or '' }}"></label>
+    <label>Prima anual <input name="prima_anual" value="{{ q.prima_anual if q.prima_anual is not none else '' }}" inputmode="decimal"></label>
+    <label>Prima total (con impuestos) <input name="prima_total" value="{{ q.prima_total if q.prima_total is not none else '' }}" inputmode="decimal"></label>
+    <label>Pago fraccionado <input name="primas_fraccionadas" value="{{ q.primas_fraccionadas or '' }}" placeholder="Semestral: 520 / Trimestral: 265"></label>
+    <label>Suma asegurada <input name="suma_asegurada" value="{{ q.suma_asegurada or '' }}"></label>
+    <label>Deducible <input name="deducible" value="{{ q.deducible or '' }}"></label>
+    <label>Vigencia <input name="vigencia" value="{{ q.vigencia or '' }}"></label>
+  </div>
+
+  <h2>Coberturas</h2>
+  <table class="table editable" id="coberturas">
+    <thead><tr><th>Cobertura</th><th>Suma asegurada / límite</th><th>Deducible</th><th>Detalle</th><th></th></tr></thead>
+    <tbody>
+    {% for c in q.coberturas %}
+      <tr>
+        <td><input name="cov_nombre" value="{{ c.nombre or '' }}"></td>
+        <td><input name="cov_suma" value="{{ c.suma_asegurada or '' }}"></td>
+        <td><input name="cov_deducible" value="{{ c.deducible or '' }}"></td>
+        <td><input name="cov_detalle" value="{{ c.detalle or '' }}"></td>
+        <td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td>
+      </tr>
+    {% endfor %}
+    {% for _ in range(3) %}
+      <tr>
+        <td><input name="cov_nombre" placeholder="Nueva cobertura"></td>
+        <td><input name="cov_suma"></td>
+        <td><input name="cov_deducible"></td>
+        <td><input name="cov_detalle"></td>
+        <td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('tr').remove()">✕</button></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-sm" onclick="addRow()">+ Agregar fila</button>
+
+  <label class="mt">Exclusiones y condiciones (una por línea)
+    <textarea name="exclusiones" rows="5">{{ q.exclusiones | join('\n') }}</textarea>
+  </label>
+  <label>Observaciones <textarea name="observaciones" rows="3">{{ q.observaciones or '' }}</textarea></label>
+
+  <div class="actions">
+    <button class="btn btn-primary">Guardar</button>
+    <a class="btn btn-ghost" href="/cotizaciones/{{ comp.id }}">Cancelar</a>
+  </div>
+</form>
+<script>
+function addRow() {
+  const tbody = document.querySelector('#coberturas tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input name="cov_nombre"></td><td><input name="cov_suma"></td><td><input name="cov_deducible"></td><td><input name="cov_detalle"></td><td><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

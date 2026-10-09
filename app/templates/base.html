@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Cotizador{% endblock %} · Cotizador de Seguros</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Cotizador<span>Seguros</span></a>
+  {% if user %}
+  <nav>
+    <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Inicio</a>
+    <a href="/cotizaciones" {% if request.url.path.startswith('/cotizaciones') %}class="active"{% endif %}>Cotizaciones</a>
+    <a href="/clientes" {% if request.url.path.startswith('/clientes') %}class="active"{% endif %}>Clientes</a>
+    {% if user.role == 'admin' %}<a href="/usuarios" {% if request.url.path.startswith('/usuarios') %}class="active"{% endif %}>Usuarios</a>{% endif %}
+  </nav>
+  <div class="userbox">
+    <a href="/perfil/clave" title="Cambiar mi clave">{{ user.full_name }} <small>({{ ROLES[user.role] }})</small></a>
+    <form method="post" action="/logout"><button class="btn btn-ghost btn-sm">Salir</button></form>
+  </div>
+  {% endif %}
+</header>
+<main class="container">
+  {% if flash %}<div class="flash flash-{{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
+  {% if user and not api_available %}
+  <div class="flash flash-warn">Sin clave de API de Claude: los PDFs se guardan pero no se leen automáticamente. Configura <code>ANTHROPIC_API_KEY</code> en el servidor.</div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="footer">Cotizador comparativo · Mercantil · Oceánica · Hispana</footer>
+</body>
+</html>

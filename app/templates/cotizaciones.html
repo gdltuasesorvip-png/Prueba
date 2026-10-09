@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Cotizaciones{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Comparativas</h1>
+  <a class="btn btn-primary" href="/cotizaciones/nueva">+ Nueva comparativa</a>
+</div>
+<form class="searchbar" method="get" action="/cotizaciones">
+  <select name="ramo">
+    <option value="">Todos los ramos</option>
+    {% for k, v in RAMOS.items() %}<option value="{{ k }}" {% if ramo == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+  </select>
+  <select name="estado">
+    <option value="">Abiertas y cerradas</option>
+    <option value="abierta" {% if estado == 'abierta' %}selected{% endif %}>Abiertas</option>
+    <option value="cerrada" {% if estado == 'cerrada' %}selected{% endif %}>Cerradas</option>
+  </select>
+  <button class="btn">Filtrar</button>
+</form>
+<div class="card">
+  {% if comparaciones %}
+  <table class="table">
+    <thead><tr><th>Título</th><th>Cliente</th><th>Ramo</th><th>Cotizaciones</th><th>Estado</th><th>Creada por</th><th>Actualizada</th></tr></thead>
+    <tbody>
+    {% for c in comparaciones %}
+      <tr>
+        <td><a href="/cotizaciones/{{ c.id }}">{{ c.title }}</a></td>
+        <td><a href="/clientes/{{ c.client_id }}">{{ c.client_name }}</a></td>
+        <td><span class="tag tag-{{ c.ramo }}">{{ RAMOS[c.ramo] }}</span></td>
+        <td>{{ c.n_quotes }}</td>
+        <td><span class="pill pill-{{ c.status }}">{{ c.status }}</span></td>
+        <td>{{ c.created_by_name or '—' }}</td>
+        <td class="muted">{{ c.updated_at[:16].replace('T',' ') }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No hay comparativas con esos filtros.</p>{% endif %}
+</div>
+{% endblock %}

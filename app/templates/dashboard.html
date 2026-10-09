@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Hola, {{ user.full_name.split(' ')[0] }}</h1>
+  <a class="btn btn-primary" href="/cotizaciones/nueva">+ Nueva comparativa</a>
+</div>
+<div class="stats">
+  <div class="stat"><span>{{ stats.cotizaciones }}</span>Comparativas</div>
+  <div class="stat"><span>{{ stats.abiertas }}</span>Abiertas</div>
+  <div class="stat"><span>{{ stats.clientes }}</span>Clientes</div>
+  <div class="stat"><span>{{ stats.pdfs }}</span>PDFs procesados</div>
+</div>
+<div class="card">
+  <h2>Comparativas recientes</h2>
+  {% if recent %}
+  <table class="table">
+    <thead><tr><th>Título</th><th>Cliente</th><th>Ramo</th><th>Cotizaciones</th><th>Estado</th><th>Actualizada</th></tr></thead>
+    <tbody>
+    {% for c in recent %}
+      <tr>
+        <td><a href="/cotizaciones/{{ c.id }}">{{ c.title }}</a></td>
+        <td>{{ c.client_name }}</td>
+        <td><span class="tag tag-{{ c.ramo }}">{{ RAMOS[c.ramo] }}</span></td>
+        <td>{{ c.n_quotes }}</td>
+        <td><span class="pill pill-{{ c.status }}">{{ c.status }}</span></td>
+        <td class="muted">{{ c.updated_at[:16].replace('T',' ') }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Aún no hay comparativas. Crea un cliente y empieza una.</p>
+  {% endif %}
+</div>
+<div class="card howto">
+  <h2>Cómo funciona</h2>
+  <ol>
+    <li>Crea el cliente y una comparativa indicando el ramo (Salud, Hogar o PyME).</li>
+    <li>Descarga la cotización en PDF de cada portal (Mercantil, Oceánica, Hispana) y súbela.</li>
+    <li>Claude lee cada PDF y extrae primas, coberturas, deducibles y exclusiones. Revisa y corrige si hace falta.</li>
+    <li>Genera el análisis comparativo y entrégaselo al cliente en la vista para imprimir.</li>
+  </ol>
+</div>
+{% endblock %}

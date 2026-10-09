@@ -1,0 +1,33 @@
+{% set ready = comp.quotes | selectattr('extraction_status', 'in', ['ok', 'manual']) | list %}
+<div class="table-wrap">
+<table class="table compare">
+  <thead>
+    <tr><th></th>{% for q in ready %}<th class="{% if q.id == comp.cheapest_id %}best{% endif %}">{{ q.company_label }}{% if q.id == comp.cheapest_id %}<small>menor prima</small>{% endif %}</th>{% endfor %}</tr>
+  </thead>
+  <tbody>
+    <tr><th>Plan</th>{% for q in ready %}<td>{{ q.plan or '—' }}</td>{% endfor %}</tr>
+    <tr class="hl"><th>Prima anual</th>{% for q in ready %}<td class="{% if q.id == comp.cheapest_id %}best{% endif %}"><strong>{{ q.prima_anual | money(q.moneda) }}</strong></td>{% endfor %}</tr>
+    <tr><th>Prima total (con impuestos)</th>{% for q in ready %}<td>{{ q.prima_total | money(q.moneda) }}</td>{% endfor %}</tr>
+    <tr><th>Pago fraccionado</th>{% for q in ready %}<td>{{ q.primas_fraccionadas or '—' }}</td>{% endfor %}</tr>
+    <tr><th>Suma asegurada</th>{% for q in ready %}<td>{{ q.suma_asegurada or '—' }}</td>{% endfor %}</tr>
+    <tr><th>Deducible</th>{% for q in ready %}<td>{{ q.deducible or '—' }}</td>{% endfor %}</tr>
+    <tr><th>Vigencia</th>{% for q in ready %}<td>{{ q.vigencia or '—' }}</td>{% endfor %}</tr>
+    <tr><th>Fecha cotización</th>{% for q in ready %}<td>{{ q.fecha_cotizacion or '—' }}</td>{% endfor %}</tr>
+    {% if comp.coverage_matrix %}
+    <tr class="section"><th colspan="{{ ready | length + 1 }}">Coberturas</th></tr>
+    {% for row in comp.coverage_matrix %}
+    <tr>
+      <th>{{ row.nombre }}</th>
+      {% for q in ready %}
+        {% set c = row.por_cotizacion.get(q.id) %}
+        <td>{% if c %}{{ c.suma_asegurada or 'Incluida' }}{% if c.deducible %}<br><small>Deducible: {{ c.deducible }}</small>{% endif %}{% if c.detalle %}<br><small class="muted">{{ c.detalle }}</small>{% endif %}{% else %}<span class="muted">No indica</span>{% endif %}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+    {% endif %}
+    <tr class="section"><th colspan="{{ ready | length + 1 }}">Exclusiones y condiciones</th></tr>
+    <tr><th>Exclusiones</th>{% for q in ready %}<td>{% if q.exclusiones %}<ul class="plain">{% for e in q.exclusiones %}<li>{{ e }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>{% endfor %}</tr>
+    <tr><th>Observaciones</th>{% for q in ready %}<td>{{ q.observaciones or '—' }}</td>{% endfor %}</tr>
+  </tbody>
+</table>
+</div>

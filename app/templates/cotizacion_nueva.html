@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Nueva comparativa{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Nueva comparativa</h1>
+  {% if not clientes %}
+  <p>Primero necesitas crear un cliente. <a href="/clientes/nuevo">Crear cliente</a></p>
+  {% else %}
+  <form method="post" class="form">
+    <label>Cliente
+      <select name="client_id" required>
+        {% for c in clientes %}<option value="{{ c.id }}" {% if cliente_id == c.id %}selected{% endif %}>{{ c.name }}{% if c.document_id %} ({{ c.document_id }}){% endif %}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Ramo
+      <select name="ramo" required>
+        {% for k, v in RAMOS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Título <input name="title" placeholder="Opcional, por ejemplo: Salud familiar 2026"></label>
+    <label>Notas internas <textarea name="notes" rows="3" placeholder="Necesidades del cliente, presupuesto, condiciones especiales…"></textarea></label>
+    <div class="actions">
+      <button class="btn btn-primary">Crear y subir PDFs</button>
+      <a class="btn btn-ghost" href="/cotizaciones">Cancelar</a>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

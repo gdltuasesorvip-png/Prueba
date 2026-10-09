@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar cliente' if cliente else 'Nuevo cliente' }}{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>{{ 'Editar cliente' if cliente else 'Nuevo cliente' }}</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Nombre o razón social <input name="name" required value="{{ cliente.name if cliente else '' }}"></label>
+    <label>Cédula / RIF <input name="document_id" value="{{ cliente.document_id if cliente else '' }}"></label>
+    <label>Teléfono <input name="phone" value="{{ cliente.phone if cliente else '' }}"></label>
+    <label>Correo <input name="email" type="email" value="{{ cliente.email if cliente else '' }}"></label>
+    <label>Notas <textarea name="notes" rows="3">{{ cliente.notes if cliente else '' }}</textarea></label>
+    <div class="actions">
+      <button class="btn btn-primary">Guardar</button>
+      <a class="btn btn-ghost" href="{{ '/clientes/' ~ cliente.id if cliente else '/clientes' }}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

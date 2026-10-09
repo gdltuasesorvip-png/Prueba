@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Clientes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Clientes</h1>
+  <a class="btn btn-primary" href="/clientes/nuevo">+ Nuevo cliente</a>
+</div>
+<form class="searchbar" method="get" action="/clientes">
+  <input name="q" value="{{ q }}" placeholder="Buscar por nombre, cédula/RIF o correo">
+  <button class="btn">Buscar</button>
+</form>
+<div class="card">
+  {% if clientes %}
+  <table class="table">
+    <thead><tr><th>Nombre</th><th>Cédula / RIF</th><th>Teléfono</th><th>Correo</th><th>Comparativas</th></tr></thead>
+    <tbody>
+    {% for c in clientes %}
+      <tr>
+        <td><a href="/clientes/{{ c.id }}">{{ c.name }}</a></td>
+        <td>{{ c.document_id or '—' }}</td>
+        <td>{{ c.phone or '—' }}</td>
+        <td>{{ c.email or '—' }}</td>
+        <td>{{ c.n_comp }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No hay clientes{% if q %} que coincidan con "{{ q }}"{% endif %}.</p>{% endif %}
+</div>
+{% endblock %}
