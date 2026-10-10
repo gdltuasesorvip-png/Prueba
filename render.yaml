@@ -1,0 +1,27 @@
+# Plantilla para publicar la app en Render (https://render.com) con un clic.
+services:
+  - type: web
+    name: cotizador-seguros
+    runtime: docker
+    plan: starter
+    region: ohio
+    healthCheckPath: /login
+    disk:
+      name: datos
+      mountPath: /srv/data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /srv/data
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Administrador
+      - key: CLAUDE_MODEL
+        value: claude-opus-5-5
