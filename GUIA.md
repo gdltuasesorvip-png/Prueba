@@ -10,18 +10,10 @@ centavos por cada PDF que Claude lea.
 - Una tarjeta para pagar el servidor y el uso de Claude.
 - Un correo para crear dos cuentas: Anthropic (Claude) y Render (el servidor).
 
-## Paso 1. Unir el código a la rama principal
+## Paso 1. El código ya está en GitHub
 
-El código está en una rama de trabajo. Hay que pasarlo a la rama principal del repositorio.
-
-1. Entra a https://github.com/gdltuasesorvip-png/Prueba
-2. Verás un aviso amarillo que dice **Compare & pull request**. Haz clic.
-   Si no aparece, ve a la pestaña **Pull requests** → **New pull request** y elige la rama
-   `claude/insurance-quotes-app-nyrp4u`.
-3. Haz clic en **Create pull request**.
-4. En la página que se abre, haz clic en **Merge pull request** y luego **Confirm merge**.
-
-Listo: el código quedó en la rama principal.
+No tienes que hacer nada aquí. El código está en https://github.com/gdltuasesorvip-png/Prueba, en la
+única rama del repositorio, que es la que Render va a usar.
 
 ## Paso 2. Conseguir la clave de Claude
 
