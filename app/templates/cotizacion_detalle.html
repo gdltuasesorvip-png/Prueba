@@ -14,8 +14,37 @@
   </div>
   <div class="actions">
     <a class="btn" href="/cotizaciones/{{ comp.id }}/imprimir" target="_blank">Vista para el cliente</a>
+    <a class="btn" href="/cotizaciones/{{ comp.id }}/pdf">Descargar PDF</a>
   </div>
 </div>
+
+{% if comp.ready %}
+<div class="card share">
+  <div class="share-row">
+    <div class="share-link">
+      <label class="muted small">Enlace para el cliente (no necesita usuario)</label>
+      <div class="share-input">
+        <input id="share-url" value="{{ share_url }}" readonly onclick="this.select()">
+        <button class="btn" type="button" onclick="copyShare()">Copiar enlace</button>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn btn-wa" href="{{ whatsapp_url }}" target="_blank" rel="noopener">Enviar por WhatsApp{% if comp.client_phone %} a {{ comp.client_phone }}{% endif %}</a>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/compartir/renovar"><button class="btn btn-ghost btn-sm" onclick="return confirm('El enlace actual dejará de funcionar. ¿Continuar?')">Renovar enlace</button></form>
+    </div>
+  </div>
+  <p class="muted small" id="share-msg">El enlace muestra solo los planes marcados con ✓ y el análisis, con los datos de tu oficina.</p>
+</div>
+<script>
+function copyShare() {
+  const el = document.getElementById('share-url');
+  el.select();
+  navigator.clipboard.writeText(el.value).then(() => {
+    document.getElementById('share-msg').textContent = 'Enlace copiado. Pégalo en WhatsApp o en un correo.';
+  }).catch(() => document.execCommand('copy'));
+}
+</script>
+{% endif %}
 
 {% if comp.pending %}<div class="flash flash-info">Claude está leyendo los PDFs… esta página se actualiza sola cada pocos segundos.</div>{% endif %}
 
@@ -85,9 +114,17 @@
   </tr>
 {% endmacro %}
 
-<div class="card">
-  <h2>Planes recibidos</h2>
-  <p class="muted small">Marca con ✓ los planes que quieres en la comparativa. Puedes incluir varios planes de la misma compañía.</p>
+<div class="card" id="planes">
+  <div class="page-head">
+    <h2>Planes recibidos</h2>
+    {% if comp.quotes %}
+    <div class="actions">
+      <form method="post" action="/cotizaciones/{{ comp.id }}/items/todos"><input type="hidden" name="included" value="1"><button class="btn btn-sm">Seleccionar todo</button></form>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/items/todos"><input type="hidden" name="included" value="0"><button class="btn btn-sm">Deseleccionar todo</button></form>
+    </div>
+    {% endif %}
+  </div>
+  <p class="muted small">Marca con ✓ los planes que quieres en la comparativa. Puedes incluir varios planes de la misma compañía. En la comparativa se ordenan del más económico al más caro.</p>
   {% if comp.documents or comp.manual_quotes %}
   <table class="table plans">
     <thead><tr><th></th><th>Compañía</th><th>Plan</th><th>Prima anual</th><th>Suma asegurada</th><th>Deducible</th><th></th></tr></thead>
@@ -121,7 +158,7 @@
 
 {% if comp.ready %}
 <div class="card" id="comparativa">
-  <h2>Comparativa <span class="muted small">({{ comp.ready | length }} planes)</span></h2>
+  <h2>Comparativa <span class="muted small">({{ comp.ready | length }} planes, de menor a mayor prima)</span></h2>
   {% include "_tabla_comparativa.html" %}
 </div>
 

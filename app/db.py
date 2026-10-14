@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -39,6 +44,7 @@ CREATE TABLE IF NOT EXISTS comparisons (
     analysis_status TEXT NOT NULL DEFAULT 'ninguno',
     analysis_error TEXT,
     status TEXT NOT NULL DEFAULT 'abierta',
+    share_token TEXT,
     created_by INTEGER REFERENCES users(id),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -163,6 +169,8 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Actualiza bases de datos creadas con versiones anteriores de la app."""
+    if "share_token" not in _columns(conn, "comparisons"):
+        conn.execute("ALTER TABLE comparisons ADD COLUMN share_token TEXT")
     cols = _columns(conn, "quotes")
     if "document_id" not in cols:
         conn.execute("ALTER TABLE quotes ADD COLUMN document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE")
@@ -205,3 +213,28 @@ def quote_from_row(row: sqlite3.Row | dict | None) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             q[key] = []
     return q
+
+
+SETTING_KEYS = {
+    "oficina_nombre": "Nombre de la oficina o corredor",
+    "oficina_telefono": "Teléfono / WhatsApp",
+    "oficina_correo": "Correo",
+    "oficina_pie": "Texto al pie de la comparativa",
+}
+
+
+def get_settings() -> dict[str, str]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    data = {k: "" for k in SETTING_KEYS}
+    data.update({r["key"]: r["value"] or "" for r in rows})
+    return data
+
+
+def save_settings(values: dict[str, str]) -> None:
+    with get_conn() as conn:
+        for key in SETTING_KEYS:
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, (values.get(key) or "").strip()),
+            )

@@ -17,7 +17,8 @@
     <a href="/cotizar" {% if request.url.path.startswith('/cotizar') %}class="active"{% endif %}>Cotizar rápido</a>
     <a href="/clientes" {% if request.url.path.startswith('/clientes') %}class="active"{% endif %}>Clientes</a>
     <a href="/tarifarios" {% if request.url.path.startswith('/tarifarios') %}class="active"{% endif %}>Tarifarios</a>
-    {% if user.role == 'admin' %}<a href="/usuarios" {% if request.url.path.startswith('/usuarios') %}class="active"{% endif %}>Usuarios</a>{% endif %}
+    {% if user.role == 'admin' %}<a href="/usuarios" {% if request.url.path.startswith('/usuarios') %}class="active"{% endif %}>Usuarios</a>
+    <a href="/configuracion" {% if request.url.path.startswith('/configuracion') %}class="active"{% endif %}>Oficina</a>{% endif %}
   </nav>
   <div class="userbox">
     <a href="/perfil/clave" title="Cambiar mi clave">{{ user.full_name }} <small>({{ ROLES[user.role] }})</small></a>

@@ -98,3 +98,11 @@ h3 { font-size: .95rem; margin: 12px 0 4px; }
 .check-btn.on { background: var(--ok); border-color: var(--ok); }
 .table.compare thead th .plan-name { color: var(--muted); text-transform: none; font-weight: 500; font-size: .82rem; display: block; margin-top: 2px; }
 .flash-warn code { background: rgba(0,0,0,.06); }
+.share { background: #f7fbff; border-color: #c3d6f1; }
+.share-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.share-link { flex: 1; min-width: 260px; }
+.share-link label { display: block; margin-bottom: 4px; }
+.share-input { display: flex; gap: 8px; }
+.share-input input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font: inherit; background: #fff; }
+.btn-wa { background: #25d366; border-color: #25d366; color: #fff; font-weight: 600; }
+.btn-wa:hover { background: #1ebe5a; }

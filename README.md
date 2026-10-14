@@ -14,7 +14,9 @@ Las aseguradoras no ofrecen API ni tarifas digitales, así que el flujo es:
 4. La app arma la tabla comparativa con un plan por columna (pueden ser varios de la misma compañía),
    marca la prima más baja y, con un clic, Claude redacta el análisis con ventajas, desventajas y
    recomendación.
-5. La "vista para el cliente" se imprime o se guarda como PDF para enviarla.
+5. Cada comparativa tiene un **enlace para el cliente** (sin usuario), botón de **WhatsApp**, **PDF
+   descargable** y una vista con los planes ordenados del más económico al más caro. Los datos de la
+   oficina que aparecen en esa vista se configuran en el menú **Oficina**.
 
 ### Cotizador rápido por tarifario
 

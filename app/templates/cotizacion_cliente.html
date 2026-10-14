@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comparativa {{ comp.ramo_label }} · {{ comp.client_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { background: #f3f5f8; }
+    .client-page { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+    .client-head { background: linear-gradient(135deg, var(--primary) 0%, #0d7fd6 100%); color: #fff; border-radius: 14px; padding: 22px 26px; margin-bottom: 20px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+    .client-head h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .client-head .sub { opacity: .9; }
+    .client-head .office { text-align: right; font-size: .9rem; opacity: .95; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .pcard { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; display: flex; flex-direction: column; gap: 4px; }
+    .pcard.best { border-color: var(--ok); box-shadow: 0 0 0 3px #e3f5ea; }
+    .pcard .rank { position: absolute; top: -10px; left: 14px; background: var(--muted); color: #fff; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .pcard.best .rank { background: var(--ok); }
+    .pcard .company { font-weight: 700; margin-top: 6px; }
+    .pcard .plan { color: var(--muted); font-size: .88rem; min-height: 2.4em; }
+    .pcard .price { font-size: 1.45rem; font-weight: 800; color: var(--primary); margin-top: 6px; }
+    .pcard.best .price { color: var(--ok); }
+    .pcard .per { font-size: .78rem; color: var(--muted); }
+    .pcard .meta { font-size: .85rem; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .pcard .badge { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+    .badge-best { background: #e3f5ea; color: var(--ok); }
+    .badge-cover { background: #e7effa; color: var(--info); }
+    .bar { height: 6px; background: #eef1f5; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
+    .pcard.best .bar span { background: var(--ok); }
+    .client-footer { margin-top: 24px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 12px; }
+    .client-footer strong { color: var(--text); }
+    @media print { .noprint { display: none !important; } body { background: #fff; } .client-page { padding: 0; max-width: none; } .client-head { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .pcard { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+<main class="client-page">
+  <div class="toolbar noprint">
+    <a class="btn btn-primary" href="{{ pdf_url }}">Descargar PDF</a>
+    <button class="btn" onclick="window.print()">Imprimir</button>
+    {% if not public %}
+    <a class="btn btn-ghost" href="/cotizaciones/{{ comp.id }}">Volver a la comparativa</a>
+    {% endif %}
+  </div>
+
+  <div class="client-head">
+    <div>
+      <h1>Comparativa de seguros · {{ comp.ramo_label }}</h1>
+      <div class="sub">Preparada para <strong>{{ comp.client_name }}</strong>{% if comp.client_document %} · {{ comp.client_document }}{% endif %} · {{ comp.created_at[:10] }}</div>
+    </div>
+    <div class="office">
+      {% if settings.oficina_nombre %}<div><strong>{{ settings.oficina_nombre }}</strong></div>{% endif %}
+      {% if settings.oficina_telefono %}<div>{{ settings.oficina_telefono }}</div>{% endif %}
+      {% if settings.oficina_correo %}<div>{{ settings.oficina_correo }}</div>{% endif %}
+      {% if not settings.oficina_nombre and comp.created_by_name %}<div>Asesor: {{ comp.created_by_name }}</div>{% endif %}
+    </div>
+  </div>
+
+  {% set priced = comp.ready | selectattr('prima_anual') | list %}
+  {% set max_price = (priced | map(attribute='prima_anual') | max) if priced else 0 %}
+  {% if comp.ready %}
+  <div class="cards">
+    {% for q in comp.ready %}
+    <div class="pcard {% if q.id == comp.cheapest_id %}best{% endif %}">
+      <span class="rank">Opción {{ loop.index }}</span>
+      <div class="company">{{ q.company_label }}</div>
+      <div class="plan">{{ q.plan or '—' }}</div>
+      <div class="price">{{ q.prima_anual | money(q.moneda) }}</div>
+      <div class="per">prima anual{% if q.prima_anual %} · aprox. {{ (q.prima_anual / 12) | money(q.moneda) }} al mes{% endif %}</div>
+      {% if q.prima_anual and max_price %}<div class="bar"><span style="width: {{ (q.prima_anual / max_price * 100) | round }}%"></span></div>{% endif %}
+      <div class="meta">
+        <div><span class="muted">Suma asegurada:</span> {{ q.suma_asegurada or '—' }}</div>
+        <div><span class="muted">Deducible:</span> {{ q.deducible or '—' }}</div>
+      </div>
+      {% if q.id == comp.cheapest_id %}<span class="badge badge-best">Más económico</span>{% endif %}
+      {% if q.id == comp.best_cover_id %}<span class="badge badge-cover">Mayor suma asegurada</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Detalle de coberturas</h2>
+    {% include "_tabla_comparativa.html" %}
+  </div>
+  {% else %}
+  <div class="card"><p>Esta comparativa aún no tiene planes seleccionados.</p></div>
+  {% endif %}
+
+  {% if comp.analysis %}
+  <div class="card">
+    <h2>Análisis y recomendación</h2>
+    <pre class="analysis">{{ comp.analysis }}</pre>
+  </div>
+  {% endif %}
+
+  <div class="client-footer">
+    {% if settings.oficina_nombre or settings.oficina_telefono or settings.oficina_correo %}
+    <p><strong>{{ settings.oficina_nombre }}</strong>{% if settings.oficina_telefono %} · {{ settings.oficina_telefono }}{% endif %}{% if settings.oficina_correo %} · {{ settings.oficina_correo }}{% endif %}</p>
+    {% endif %}
+    <p>{{ settings.oficina_pie or 'Las primas y coberturas provienen de las cotizaciones emitidas por cada aseguradora y están sujetas a sus condiciones generales y particulares.' }}</p>
+  </div>
+</main>
+</body>
+</html>

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import auth, config, db, extraction, tarifas
+from . import auth, config, db, extraction, pdfgen, tarifas
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -85,6 +86,44 @@ def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", name.lower().strip())
 
 
+def _amount(text: str | None) -> float | None:
+    """Saca el número principal de un texto como 'USD 50.000' o '$1,250.50'."""
+    if not text:
+        return None
+    m = re.search(r"\d[\d.,]*", text)
+    if not m:
+        return None
+    return tarifas.parse_number(m.group(0))
+
+
+def ensure_share_token(comparison_id: int) -> str:
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT share_token FROM comparisons WHERE id=?", (comparison_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Cotización no encontrada")
+        if row["share_token"]:
+            return row["share_token"]
+        token = secrets.token_urlsafe(12)
+        conn.execute("UPDATE comparisons SET share_token=? WHERE id=?", (token, comparison_id))
+        return token
+
+
+def client_view_context(request: Request, comp: dict[str, Any]) -> dict[str, Any]:
+    settings = db.get_settings()
+    token = comp.get("share_token") or ensure_share_token(comp["id"])
+    share_url = str(request.base_url).rstrip("/") + f"/c/{token}"
+    phone = re.sub(r"\D", "", comp.get("client_phone") or "")
+    greeting = comp["client_name"].split(" ")[0] if comp.get("client_name") else ""
+    text = (
+        f"Hola {greeting}, te comparto la comparativa de seguros de {comp['ramo_label'].lower()} "
+        f"con {len(comp['ready'])} opciones: {share_url}"
+    )
+    if settings.get("oficina_nombre"):
+        text += f"\n{settings['oficina_nombre']}"
+    wa = f"https://wa.me/{phone}?text={quote(text)}" if phone else f"https://wa.me/?text={quote(text)}"
+    return {"settings": settings, "share_url": share_url, "whatsapp_url": wa, "share_text": text}
+
+
 def company_label(company: str, company_name: str | None) -> str:
     if company == "otra" and company_name:
         return company_name
@@ -125,8 +164,13 @@ def load_comparison(comparison_id: int) -> dict[str, Any]:
     comp["quotes"] = quotes
     comp["manual_quotes"] = [q for q in quotes if q.get("document_id") not in by_doc]
     comp["ramo_label"] = config.RAMOS.get(comp["ramo"], comp["ramo"])
-    comp["ready"] = [q for q in quotes if q["included"] and q["extraction_status"] in ("ok", "manual")]
+    ready = [q for q in quotes if q["included"] and q["extraction_status"] in ("ok", "manual")]
+    ready.sort(key=lambda q: (q["prima_anual"] is None, q["prima_anual"] or 0, q["company_label"], q.get("plan") or ""))
+    comp["ready"] = ready
     comp["coverage_matrix"] = build_coverage_matrix(comp["ready"])
+    covered = [(q, _amount(q.get("suma_asegurada"))) for q in ready]
+    covered = [(q, a) for q, a in covered if a is not None]
+    comp["best_cover_id"] = max(covered, key=lambda t: t[1])[0]["id"] if len(covered) > 1 else None
     comp["pending"] = any(d["extraction_status"] == "pendiente" for d in documents) or comp[
         "analysis_status"
     ] == "procesando"
@@ -441,13 +485,58 @@ def cotizacion_nueva(
 @app.get("/cotizaciones/{comparison_id}", response_class=HTMLResponse)
 def cotizacion_detalle(request: Request, comparison_id: int, user: dict = Depends(auth.require_user)):
     comp = load_comparison(comparison_id)
-    return render(request, "cotizacion_detalle.html", user=user, comp=comp)
+    return render(request, "cotizacion_detalle.html", user=user, comp=comp, **client_view_context(request, comp))
 
 
 @app.get("/cotizaciones/{comparison_id}/imprimir", response_class=HTMLResponse)
 def cotizacion_imprimir(request: Request, comparison_id: int, user: dict = Depends(auth.require_user)):
     comp = load_comparison(comparison_id)
-    return render(request, "cotizacion_imprimir.html", user=user, comp=comp)
+    ctx = client_view_context(request, comp)
+    return render(request, "cotizacion_cliente.html", user=user, comp=comp, public=False, pdf_url=f"/cotizaciones/{comp['id']}/pdf", **ctx)
+
+
+@app.get("/cotizaciones/{comparison_id}/pdf")
+def cotizacion_pdf(comparison_id: int, user: dict = Depends(auth.require_user)):
+    comp = load_comparison(comparison_id)
+    return _pdf_response(comp)
+
+
+def _pdf_response(comp: dict[str, Any]) -> Response:
+    data = pdfgen.build_pdf(comp, db.get_settings())
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", f"Comparativa {comp['ramo_label']} {comp['client_name']}").strip("_")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(safe)}.pdf"},
+    )
+
+
+@app.get("/c/{token}", response_class=HTMLResponse)
+def comparativa_publica(request: Request, token: str):
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT id FROM comparisons WHERE share_token=?", (token,)).fetchone()
+    if row is None or len(token) < 8:
+        raise HTTPException(404, "Esta comparativa no existe o el enlace ya no es válido")
+    comp = load_comparison(row["id"])
+    ctx = client_view_context(request, comp)
+    return render(request, "cotizacion_cliente.html", user=None, comp=comp, public=True, pdf_url=f"/c/{token}/pdf", **ctx)
+
+
+@app.get("/c/{token}/pdf")
+def comparativa_publica_pdf(token: str):
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT id FROM comparisons WHERE share_token=?", (token,)).fetchone()
+    if row is None or len(token) < 8:
+        raise HTTPException(404, "Esta comparativa no existe o el enlace ya no es válido")
+    return _pdf_response(load_comparison(row["id"]))
+
+
+@app.post("/cotizaciones/{comparison_id}/compartir/renovar")
+def compartir_renovar(comparison_id: int, user: dict = Depends(auth.require_user)):
+    load_comparison(comparison_id)
+    with db.get_conn() as conn:
+        conn.execute("UPDATE comparisons SET share_token=? WHERE id=?", (secrets.token_urlsafe(12), comparison_id))
+    return redirect(f"/cotizaciones/{comparison_id}", "Enlace renovado: el anterior dejó de funcionar")
 
 
 @app.post("/cotizaciones/{comparison_id}/subir")
@@ -671,6 +760,17 @@ def quote_incluir(comparison_id: int, quote_id: int, included: int = Form(...), 
     return redirect(f"/cotizaciones/{comparison_id}#comparativa")
 
 
+@app.post("/cotizaciones/{comparison_id}/items/todos")
+def quotes_incluir_todos(comparison_id: int, included: int = Form(...), user: dict = Depends(auth.require_user)):
+    load_comparison(comparison_id)
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE quotes SET included=?, updated_at=? WHERE comparison_id=?",
+            (1 if included else 0, db.now_iso(), comparison_id),
+        )
+    return redirect(f"/cotizaciones/{comparison_id}#planes")
+
+
 @app.post("/cotizaciones/{comparison_id}/items/{quote_id}/duplicar")
 def quote_duplicar(comparison_id: int, quote_id: int, user: dict = Depends(auth.require_user)):
     q = _get_quote(comparison_id, quote_id)
@@ -798,6 +898,18 @@ def usuario_clave(user_id: int, password: str = Form(...), user: dict = Depends(
     with db.get_conn() as conn:
         conn.execute("UPDATE users SET password_hash=? WHERE id=?", (auth.hash_password(password), user_id))
     return redirect("/usuarios", "Clave restablecida")
+
+
+@app.get("/configuracion", response_class=HTMLResponse)
+def configuracion_form(request: Request, user: dict = Depends(auth.require_admin)):
+    return render(request, "configuracion.html", user=user, settings=db.get_settings(), keys=db.SETTING_KEYS)
+
+
+@app.post("/configuracion")
+async def configuracion_guardar(request: Request, user: dict = Depends(auth.require_admin)):
+    form = await request.form()
+    db.save_settings({k: str(form.get(k, "")) for k in db.SETTING_KEYS})
+    return redirect("/configuracion", "Configuración guardada")
 
 
 @app.get("/perfil/clave", response_class=HTMLResponse)

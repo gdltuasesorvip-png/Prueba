@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Configuración{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Datos de la oficina</h1>
+  <p class="muted">Aparecen en la vista para el cliente, en el PDF y en el mensaje de WhatsApp.</p>
+  <form method="post" class="form">
+    {% for key, label in keys.items() %}
+    <label>{{ label }}
+      {% if key == 'oficina_pie' %}<textarea name="{{ key }}" rows="3" placeholder="Las primas y coberturas provienen de las cotizaciones emitidas por cada aseguradora…">{{ settings[key] }}</textarea>
+      {% else %}<input name="{{ key }}" value="{{ settings[key] }}">{% endif %}
+    </label>
+    {% endfor %}
+    <button class="btn btn-primary">Guardar</button>
+  </form>
+</div>
+{% endblock %}

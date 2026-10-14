@@ -62,7 +62,10 @@ El disco guarda la base de datos y los PDFs, así que no se pierde nada al reini
 5. Haz clic en **Editar** para revisar lo que leyó. Corrige lo que haga falta y guarda.
 6. Repite con las otras compañías. Con dos o más, aparece la tabla comparativa y el botón
    **Generar análisis con Claude**.
-7. **Vista para el cliente** abre la versión limpia para imprimir o guardar como PDF.
+7. Para enviarla: **Copiar enlace** y pégalo donde quieras, **Enviar por WhatsApp** abre el chat con el
+   mensaje listo, y **Descargar PDF** te da el archivo. Solo se incluyen los planes marcados con ✓.
+8. En el menú **Oficina** pon el nombre de tu oficina, teléfono y correo: aparecen en el enlace, en el PDF
+   y en el mensaje de WhatsApp.
 
 ## Paso 7. Cargar los tarifarios reales
 

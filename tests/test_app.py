@@ -165,7 +165,7 @@ def test_extraction_pipeline_with_mock(client, monkeypatch):
     comp = main.load_comparison(comp_id)
     assert len(comp["ready"]) == 3
     r = client.get(f"/cotizaciones/{comp_id}/imprimir")
-    assert r.text.count("Plan Plus") == 1
+    assert r.text.count("Plan Plus") == 2  # tarjeta + tabla del plan que sigue incluido
 
     # Releer un PDF reemplaza sus planes sin duplicarlos
     doc_id = comp["documents"][0]["id"]
@@ -406,3 +406,53 @@ def test_extract_quote_uses_streaming(tmp_path, monkeypatch):
     assert "Identifica la aseguradora" in calls["messages"][0]["content"][1]["text"]
     assert calls["client_kwargs"]["timeout"] == 900
     assert extraction.detect_company(result.compania) == "oceanica"
+
+
+def test_share_link_pdf_and_select_all(client, monkeypatch):
+    login(client)
+    r = client.post("/configuracion", data={"oficina_nombre": "Oficina Díaz", "oficina_telefono": "0414-0000000"}, follow_redirects=True)
+    assert "Configuración guardada" in r.text
+
+    r = client.post("/clientes/nuevo", data={"name": "Laura Pérez", "phone": "+58 412-1234567"}, follow_redirects=False)
+    client_id = int(r.headers["location"].rsplit("/", 1)[1])
+    r = client.post("/cotizaciones/nueva", data={"client_id": client_id, "ramo": "salud"}, follow_redirects=False)
+    comp_id = int(r.headers["location"].rsplit("/", 1)[1])
+    for company, plan, prima, suma in (("mercantil", "Plus", "1850", "USD 100.000"), ("hispana", "Familiar", "1390", "USD 60.000"), ("oceanica", "Oro", "1620", "USD 80.000")):
+        r = client.post(f"/cotizaciones/{comp_id}/manual", data={"company": company}, follow_redirects=False)
+        client.post(r.headers["location"], data={"plan": plan, "moneda": "USD", "prima_anual": prima, "suma_asegurada": suma,
+                                                 "cov_nombre": ["Hospitalización"], "cov_suma": [suma], "cov_deducible": [""], "cov_detalle": [""]})
+    comp = main.load_comparison(comp_id)
+    # Ordenados de menor a mayor prima; mayor suma asegurada detectada
+    assert [q["plan"] for q in comp["ready"]] == ["Familiar", "Oro", "Plus"]
+    assert next(q for q in comp["ready"] if q["id"] == comp["best_cover_id"])["plan"] == "Plus"
+
+    # Enlace público con el teléfono del cliente en WhatsApp
+    r = client.get(f"/cotizaciones/{comp_id}")
+    assert "Copiar enlace" in r.text and "wa.me/584121234567" in r.text
+    token = r.text.split('id="share-url" value="')[1].split("/c/")[1].split('"')[0]
+    assert len(token) >= 12
+
+    # La vista pública no requiere sesión y muestra oficina, orden y badges
+    anon = TestClient(main.app)
+    r = anon.get(f"/c/{token}")
+    assert r.status_code == 200 and "Oficina Díaz" in r.text and "Más económico" in r.text
+    assert r.text.index("Familiar") < r.text.index("Oro") < r.text.index("Plus")
+    assert anon.get("/c/tokenfalso123").status_code == 404
+    r = anon.get(f"/c/{token}/pdf")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
+
+    # PDF con sesión
+    r = client.get(f"/cotizaciones/{comp_id}/pdf")
+    assert r.status_code == 200 and r.content.startswith(b"%PDF") and len(r.content) > 5000
+
+    # Deseleccionar todo / seleccionar todo
+    client.post(f"/cotizaciones/{comp_id}/items/todos", data={"included": 0})
+    assert main.load_comparison(comp_id)["ready"] == []
+    r = anon.get(f"/c/{token}")
+    assert "no tiene planes seleccionados" in r.text
+    client.post(f"/cotizaciones/{comp_id}/items/todos", data={"included": 1})
+    assert len(main.load_comparison(comp_id)["ready"]) == 3
+
+    # Renovar enlace invalida el anterior
+    client.post(f"/cotizaciones/{comp_id}/compartir/renovar")
+    assert anon.get(f"/c/{token}").status_code == 404
