@@ -90,3 +90,11 @@ details summary { cursor: pointer; color: var(--primary); }
 label.check { display: block; padding: 4px 0; cursor: pointer; }
 label.check input { margin-right: 6px; }
 h3 { font-size: .95rem; margin: 12px 0 4px; }
+.table.plans tr.doc-row td { background: #f3f5f8; font-size: .9rem; padding-top: 12px; }
+.table.plans tr.excluded td { color: var(--muted); }
+.table.plans tr.excluded td:nth-child(2), .table.plans tr.excluded td:nth-child(3) { text-decoration: line-through; }
+.inline-form { display: inline; }
+.check-btn { width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--border); background: #fff; cursor: pointer; color: #fff; font-weight: 700; line-height: 1; }
+.check-btn.on { background: var(--ok); border-color: var(--ok); }
+.table.compare thead th .plan-name { color: var(--muted); text-transform: none; font-weight: 500; font-size: .82rem; display: block; margin-top: 2px; }
+.flash-warn code { background: rgba(0,0,0,.06); }

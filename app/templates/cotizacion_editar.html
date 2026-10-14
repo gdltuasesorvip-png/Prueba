@@ -6,12 +6,14 @@
     <h1>{{ q.company_label }}</h1>
     <p class="muted"><a href="/cotizaciones/{{ comp.id }}">{{ comp.title }}</a> · {{ comp.client_name }} · {{ comp.ramo_label }}</p>
   </div>
-  {% if q.file_path %}<a class="btn" href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/pdf" target="_blank">Ver PDF</a>{% endif %}
+  {% if q.document_id %}<a class="btn" href="/cotizaciones/{{ comp.id }}/docs/{{ q.document_id }}/pdf" target="_blank">Ver PDF</a>{% endif %}
 </div>
-{% if q.extraction_status == 'error' %}<div class="flash flash-error">{{ q.extraction_error }}</div>{% endif %}
 <form method="post" class="form card">
-  <input type="hidden" name="extraction_status" value="{{ 'ok' if q.extraction_status == 'ok' else 'manual' }}">
   <div class="grid-3">
+    <label>Compañía
+      <select name="company">{% for k, v in COMPANIAS.items() %}<option value="{{ k }}" {% if q.company == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Nombre de la compañía (si es "Otra") <input name="company_name" value="{{ q.company_name or '' }}"></label>
     <label>Plan <input name="plan" value="{{ q.plan or '' }}"></label>
     <label>Moneda <input name="moneda" value="{{ q.moneda or '' }}" placeholder="USD"></label>
     <label>Fecha de cotización <input name="fecha_cotizacion" value="{{ q.fecha_cotizacion or '' }}"></label>

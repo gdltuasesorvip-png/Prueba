@@ -21,22 +21,27 @@ class Cobertura(BaseModel):
     detalle: Optional[str] = Field(description="Condición, sublímite, período de espera u otra nota breve")
 
 
-class CotizacionExtraida(BaseModel):
-    compania: Optional[str] = Field(description="Nombre de la aseguradora que emite la cotización")
-    plan: Optional[str] = Field(description="Nombre comercial del plan o producto cotizado")
-    ramo_detectado: Literal["salud", "hogar", "pyme", "otro"] = Field(description="Ramo del seguro cotizado")
-    asegurado: Optional[str] = Field(description="Nombre del tomador, asegurado o empresa, si aparece")
-    moneda: Optional[str] = Field(description="Moneda principal de la prima, por ejemplo USD, EUR o Bs")
-    prima_anual: Optional[float] = Field(description="Prima anual neta en número, sin símbolos")
-    prima_total: Optional[float] = Field(description="Prima total anual a pagar incluyendo impuestos y recargos, si la distingue")
-    primas_fraccionadas: Optional[str] = Field(description="Opciones de pago fraccionado con sus montos, en una línea")
+class PlanExtraido(BaseModel):
+    plan: str = Field(description="Nombre del plan u opción tal como aparece (por ejemplo 'Plan Oro', 'Opción 2', 'Suma asegurada USD 50.000')")
+    prima_anual: Optional[float] = Field(description="Prima anual neta de este plan en número, sin símbolos")
+    prima_total: Optional[float] = Field(description="Prima total anual a pagar de este plan incluyendo impuestos y recargos, si la distingue")
+    primas_fraccionadas: Optional[str] = Field(description="Opciones de pago fraccionado de este plan con sus montos, en una línea")
     suma_asegurada: Optional[str] = Field(description="Suma asegurada o límite máximo principal del plan")
     deducible: Optional[str] = Field(description="Deducible o copago principal del plan")
+    coberturas: list[Cobertura] = Field(description="Coberturas, beneficios y sublímites de este plan")
+    exclusiones: list[str] = Field(description="Exclusiones, períodos de espera o condiciones importantes de este plan")
+    observaciones: Optional[str] = Field(description="Cualquier dato relevante de este plan que no encaje en los otros campos")
+
+
+class CotizacionExtraida(BaseModel):
+    compania: Optional[str] = Field(description="Nombre de la aseguradora que emite la cotización, tal como aparece")
+    ramo_detectado: Literal["salud", "hogar", "pyme", "otro"] = Field(description="Ramo del seguro cotizado")
+    asegurado: Optional[str] = Field(description="Nombre del tomador, asegurado o empresa, si aparece")
+    moneda: Optional[str] = Field(description="Moneda principal de las primas, por ejemplo USD, EUR o Bs")
     vigencia: Optional[str] = Field(description="Período de vigencia o fecha de inicio y fin")
     fecha_cotizacion: Optional[str] = Field(description="Fecha de emisión o validez de la cotización")
-    coberturas: list[Cobertura] = Field(description="Todas las coberturas, beneficios y sublímites relevantes")
-    exclusiones: list[str] = Field(description="Exclusiones, períodos de espera o condiciones importantes")
-    observaciones: Optional[str] = Field(description="Cualquier dato relevante que no encaje en los otros campos")
+    planes: list[PlanExtraido] = Field(description="Todos los planes u opciones cotizados en el documento, uno por entrada")
+    observaciones_generales: Optional[str] = Field(description="Notas que aplican a todo el documento")
     confianza: Literal["alta", "media", "baja"] = Field(description="Qué tan completa y legible fue la lectura del PDF")
 
 
@@ -45,27 +50,34 @@ Recibirás el PDF de una cotización emitida por una aseguradora (Mercantil Segu
 Hispana de Seguros u otra) para los ramos de salud, hogar o PyME.
 
 Tu tarea es extraer con exactitud los datos de la cotización en el formato solicitado:
+- Las cotizaciones suelen traer VARIOS planes u opciones (por ejemplo distintos nombres de plan, distintas
+  sumas aseguradas o distintos deducibles, cada uno con su prima). Extrae TODOS como entradas separadas en
+  "planes", en el mismo orden del documento. Si solo hay uno, devuelve una sola entrada.
+- Si un mismo plan aparece con varias sumas aseguradas y primas (por ejemplo en una tabla), cada combinación
+  es una entrada distinta; nómbrala combinando el plan y la suma, como "Plan Oro - USD 50.000".
 - Copia montos, límites y deducibles tal como aparecen, incluyendo la moneda, salvo en los campos numéricos.
 - En los campos numéricos (prima_anual, prima_total) escribe solo el número, sin símbolos ni separadores de miles.
 - Si un dato no aparece en el documento, déjalo en null. Nunca inventes valores.
-- Lista todas las coberturas con sus límites; en salud incluye cobertura máxima, emergencias, maternidad,
+- Lista las coberturas de cada plan con sus límites; en salud incluye cobertura máxima, emergencias, maternidad,
   hospitalización, ambulatorio, odontología, red de clínicas, períodos de espera y copagos si aparecen.
   En hogar incluye estructura, contenido, robo, responsabilidad civil, daños por agua, incendio y asistencia.
   En PyME incluye incendio, robo, responsabilidad civil, equipos, pérdida de beneficios, fidelidad y asistencia.
-- Si el PDF trae varias opciones de plan, extrae la opción principal y describe las demás en observaciones
-  con sus primas.
+- Si las coberturas son comunes a todos los planes y solo cambian los límites, repítelas en cada plan con el
+  límite que le corresponde.
 - Responde en español."""
 
 ANALYSIS_PROMPT = """Eres un asesor de seguros senior en Venezuela. Un corredor te entrega las cotizaciones de
-varias aseguradoras para un mismo cliente y ramo, ya extraídas en formato estructurado.
+varias aseguradoras (a veces varios planes de una misma aseguradora) para un mismo cliente y ramo, ya
+extraídas en formato estructurado.
 
 Redacta un análisis comparativo breve y claro, en español, listo para enviarle al cliente:
 1. Un resumen de dos o tres líneas con la diferencia principal entre las opciones.
-2. Una lista de ventajas y desventajas de cada compañía (precio, coberturas, límites, deducibles, exclusiones).
+2. Una lista de ventajas y desventajas de cada plan (precio, coberturas, límites, deducibles, exclusiones).
+   Si hay varios planes de una misma compañía, explica en qué se diferencian entre sí.
 3. Una recomendación razonada, aclarando para qué perfil de cliente conviene cada opción.
 4. Datos que faltan o que conviene confirmar con la aseguradora antes de decidir.
 
-Usa solo la información entregada. No inventes coberturas ni precios. Si los datos de una compañía están
+Usa solo la información entregada. No inventes coberturas ni precios. Si los datos de un plan están
 incompletos, dilo. Escribe en texto plano con títulos cortos y viñetas, sin tablas."""
 
 
@@ -77,6 +89,18 @@ def api_available() -> bool:
     return bool(config.ANTHROPIC_API_KEY)
 
 
+def detect_company(name: str | None) -> str:
+    """Convierte el nombre de la aseguradora leído del PDF en la clave interna."""
+    text = (name or "").lower()
+    if "mercantil" in text:
+        return "mercantil"
+    if "ocean" in text or "oceán" in text:
+        return "oceanica"
+    if "hispana" in text:
+        return "hispana"
+    return "otra"
+
+
 def _client() -> anthropic.Anthropic:
     if not api_available():
         raise ExtractionError(
@@ -86,15 +110,31 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 
 
-def extract_quote(pdf_path: Path, company_label: str, ramo_label: str) -> CotizacionExtraida:
-    """Lee un PDF de cotización y devuelve sus datos estructurados."""
+def _handle_api_errors(exc: Exception) -> ExtractionError:
+    if isinstance(exc, anthropic.AuthenticationError):
+        return ExtractionError("La clave de API de Anthropic no es válida.")
+    if isinstance(exc, anthropic.RateLimitError):
+        return ExtractionError("Límite de uso de la API alcanzado. Intenta de nuevo en unos minutos.")
+    if isinstance(exc, anthropic.APIStatusError):
+        return ExtractionError(f"Error de la API de Claude ({exc.status_code}): {exc.message}")
+    if isinstance(exc, anthropic.APIConnectionError):
+        return ExtractionError("No se pudo conectar con la API de Claude.")
+    return ExtractionError(f"Error inesperado: {exc}")
+
+
+def extract_quote(pdf_path: Path, company_label: str | None, ramo_label: str) -> CotizacionExtraida:
+    """Lee un PDF de cotización y devuelve sus datos estructurados, con todos sus planes."""
     client = _client()
     pdf_b64 = base64.standard_b64encode(pdf_path.read_bytes()).decode("ascii")
-
+    hint = (
+        f"Esta cotización debería ser de {company_label} para el ramo {ramo_label}."
+        if company_label
+        else f"Esta cotización es para el ramo {ramo_label}. Identifica la aseguradora que la emite."
+    )
     try:
         response = client.beta.messages.parse(
             model=config.CLAUDE_MODEL,
-            max_tokens=16000,
+            max_tokens=32000,
             betas=BETAS,
             fallbacks="default",
             system=SYSTEM_PROMPT,
@@ -104,32 +144,16 @@ def extract_quote(pdf_path: Path, company_label: str, ramo_label: str) -> Cotiza
                     "content": [
                         {
                             "type": "document",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "application/pdf",
-                                "data": pdf_b64,
-                            },
+                            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64},
                         },
-                        {
-                            "type": "text",
-                            "text": (
-                                f"Esta cotización debería ser de {company_label} para el ramo {ramo_label}. "
-                                "Extrae todos los datos de la cotización."
-                            ),
-                        },
+                        {"type": "text", "text": f"{hint} Extrae todos los planes y datos de la cotización."},
                     ],
                 }
             ],
             output_format=CotizacionExtraida,
         )
-    except anthropic.AuthenticationError as exc:
-        raise ExtractionError("La clave de API de Anthropic no es válida.") from exc
-    except anthropic.RateLimitError as exc:
-        raise ExtractionError("Límite de uso de la API alcanzado. Intenta de nuevo en unos minutos.") from exc
-    except anthropic.APIStatusError as exc:
-        raise ExtractionError(f"Error de la API de Claude ({exc.status_code}): {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise ExtractionError("No se pudo conectar con la API de Claude.") from exc
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        raise _handle_api_errors(exc) from exc
 
     if response.stop_reason == "refusal":
         raise ExtractionError("Claude no pudo procesar este documento (respuesta rechazada).")
@@ -137,30 +161,31 @@ def extract_quote(pdf_path: Path, company_label: str, ramo_label: str) -> Cotiza
         raise ExtractionError("El documento es demasiado largo para procesarlo de una vez.")
     if response.parsed_output is None:
         raise ExtractionError("Claude no devolvió datos estructurados para este PDF.")
+    if not response.parsed_output.planes:
+        raise ExtractionError("Claude no encontró planes con prima en este PDF.")
     return response.parsed_output
 
 
 def generate_analysis(client_name: str, ramo_label: str, quotes: list[dict]) -> str:
     """Genera el análisis comparativo en texto a partir de las cotizaciones ya extraídas."""
     client = _client()
-    payload = []
-    for q in quotes:
-        payload.append(
-            {
-                "compania": q.get("company_label"),
-                "plan": q.get("plan"),
-                "moneda": q.get("moneda"),
-                "prima_anual": q.get("prima_anual"),
-                "prima_total": q.get("prima_total"),
-                "primas_fraccionadas": q.get("primas_fraccionadas"),
-                "suma_asegurada": q.get("suma_asegurada"),
-                "deducible": q.get("deducible"),
-                "vigencia": q.get("vigencia"),
-                "coberturas": q.get("coberturas"),
-                "exclusiones": q.get("exclusiones"),
-                "observaciones": q.get("observaciones"),
-            }
-        )
+    payload = [
+        {
+            "compania": q.get("company_label"),
+            "plan": q.get("plan"),
+            "moneda": q.get("moneda"),
+            "prima_anual": q.get("prima_anual"),
+            "prima_total": q.get("prima_total"),
+            "primas_fraccionadas": q.get("primas_fraccionadas"),
+            "suma_asegurada": q.get("suma_asegurada"),
+            "deducible": q.get("deducible"),
+            "vigencia": q.get("vigencia"),
+            "coberturas": q.get("coberturas"),
+            "exclusiones": q.get("exclusiones"),
+            "observaciones": q.get("observaciones"),
+        }
+        for q in quotes
+    ]
     user_text = (
         f"Cliente: {client_name}\nRamo: {ramo_label}\n\n"
         f"Cotizaciones:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
@@ -175,14 +200,8 @@ def generate_analysis(client_name: str, ramo_label: str, quotes: list[dict]) -> 
             messages=[{"role": "user", "content": user_text}],
         ) as stream:
             response = stream.get_final_message()
-    except anthropic.AuthenticationError as exc:
-        raise ExtractionError("La clave de API de Anthropic no es válida.") from exc
-    except anthropic.RateLimitError as exc:
-        raise ExtractionError("Límite de uso de la API alcanzado. Intenta de nuevo en unos minutos.") from exc
-    except anthropic.APIStatusError as exc:
-        raise ExtractionError(f"Error de la API de Claude ({exc.status_code}): {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise ExtractionError("No se pudo conectar con la API de Claude.") from exc
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        raise _handle_api_errors(exc) from exc
 
     if response.stop_reason == "refusal":
         raise ExtractionError("Claude no pudo generar el análisis (respuesta rechazada).")

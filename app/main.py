@@ -85,6 +85,12 @@ def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", name.lower().strip())
 
 
+def company_label(company: str, company_name: str | None) -> str:
+    if company == "otra" and company_name:
+        return company_name
+    return config.COMPANIAS.get(company, company_name or company)
+
+
 def load_comparison(comparison_id: int) -> dict[str, Any]:
     with db.get_conn() as conn:
         row = conn.execute(
@@ -97,22 +103,35 @@ def load_comparison(comparison_id: int) -> dict[str, Any]:
         if row is None:
             raise HTTPException(404, "Cotización no encontrada")
         comp = dict(row)
+        documents = db.rows_to_list(
+            conn.execute("SELECT * FROM documents WHERE comparison_id = ? ORDER BY created_at, id", (comparison_id,)).fetchall()
+        )
         quotes = [
             db.quote_from_row(r)
             for r in conn.execute(
-                "SELECT * FROM quotes WHERE comparison_id = ? ORDER BY created_at", (comparison_id,)
+                "SELECT * FROM quotes WHERE comparison_id = ? ORDER BY created_at, id", (comparison_id,)
             ).fetchall()
         ]
+    for d in documents:
+        d["company_label"] = company_label(d["company"], d["company_name"]) if d["company"] != "auto" else "Detectando…"
+        d["quotes"] = []
+    by_doc = {d["id"]: d for d in documents}
     for q in quotes:
-        q["company_label"] = config.COMPANIAS.get(q["company"], q["company"])
+        q["company_label"] = company_label(q["company"], q["company_name"])
+        q["label"] = f"{q['company_label']} · {q['plan']}" if q.get("plan") else q["company_label"]
+        if q.get("document_id") in by_doc:
+            by_doc[q["document_id"]]["quotes"].append(q)
+    comp["documents"] = documents
     comp["quotes"] = quotes
+    comp["manual_quotes"] = [q for q in quotes if q.get("document_id") not in by_doc]
     comp["ramo_label"] = config.RAMOS.get(comp["ramo"], comp["ramo"])
-    comp["coverage_matrix"] = build_coverage_matrix(quotes)
-    comp["pending"] = any(q["extraction_status"] == "pendiente" for q in quotes) or comp[
+    comp["ready"] = [q for q in quotes if q["included"] and q["extraction_status"] in ("ok", "manual")]
+    comp["coverage_matrix"] = build_coverage_matrix(comp["ready"])
+    comp["pending"] = any(d["extraction_status"] == "pendiente" for d in documents) or comp[
         "analysis_status"
     ] == "procesando"
-    ready = [q for q in quotes if q["prima_anual"] is not None]
-    comp["cheapest_id"] = min(ready, key=lambda q: q["prima_anual"])["id"] if len(ready) > 1 else None
+    priced = [q for q in comp["ready"] if q["prima_anual"] is not None]
+    comp["cheapest_id"] = min(priced, key=lambda q: q["prima_anual"])["id"] if len(priced) > 1 else None
     return comp
 
 
@@ -138,67 +157,67 @@ def build_coverage_matrix(quotes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- tareas en segundo plano
 
 
-def run_extraction(quote_id: int) -> None:
+def run_extraction(document_id: int) -> None:
     with db.get_conn() as conn:
-        row = conn.execute(
-            "SELECT q.*, c.ramo FROM quotes q JOIN comparisons c ON c.id = q.comparison_id WHERE q.id = ?",
-            (quote_id,),
+        doc = conn.execute(
+            "SELECT d.*, c.ramo FROM documents d JOIN comparisons c ON c.id = d.comparison_id WHERE d.id = ?",
+            (document_id,),
         ).fetchone()
-    if row is None or not row["file_path"]:
+    if doc is None:
         return
+    hint = config.COMPANIAS.get(doc["company"]) if doc["company"] not in ("auto", "otra") else None
     try:
-        data = extraction.extract_quote(
-            Path(row["file_path"]),
-            config.COMPANIAS.get(row["company"], row["company"]),
-            config.RAMOS.get(row["ramo"], row["ramo"]),
-        )
+        data = extraction.extract_quote(Path(doc["file_path"]), hint, config.RAMOS.get(doc["ramo"], doc["ramo"]))
     except extraction.ExtractionError as exc:
-        _set_extraction_error(quote_id, str(exc))
+        _set_extraction_error(document_id, str(exc))
         return
     except Exception as exc:  # noqa: BLE001 - cualquier fallo debe quedar registrado, no perder el PDF
-        _set_extraction_error(quote_id, f"Error inesperado: {exc}")
+        _set_extraction_error(document_id, f"Error inesperado: {exc}")
         return
 
+    company = doc["company"]
+    if company == "auto":
+        company = extraction.detect_company(data.compania)
+    company_name = data.compania if company == "otra" else None
+    ts = db.now_iso()
     with db.get_conn() as conn:
+        conn.execute("DELETE FROM quotes WHERE document_id=?", (document_id,))
+        for plan in data.planes:
+            conn.execute(
+                """INSERT INTO quotes (comparison_id, document_id, company, company_name, included, plan, moneda,
+                   prima_anual, prima_total, primas_fraccionadas, suma_asegurada, deducible, vigencia,
+                   fecha_cotizacion, coberturas, exclusiones, observaciones, confianza, extraction_status,
+                   uploaded_by, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?)""",
+                (
+                    doc["comparison_id"], document_id, company, company_name, plan.plan, data.moneda,
+                    plan.prima_anual, plan.prima_total, plan.primas_fraccionadas, plan.suma_asegurada,
+                    plan.deducible, data.vigencia, data.fecha_cotizacion,
+                    json.dumps([c.model_dump() for c in plan.coberturas], ensure_ascii=False),
+                    json.dumps(plan.exclusiones, ensure_ascii=False),
+                    plan.observaciones, data.confianza, doc["uploaded_by"], ts, ts,
+                ),
+            )
         conn.execute(
-            """UPDATE quotes SET plan=?, moneda=?, prima_anual=?, prima_total=?, primas_fraccionadas=?,
-               suma_asegurada=?, deducible=?, vigencia=?, fecha_cotizacion=?, coberturas=?, exclusiones=?,
-               observaciones=?, confianza=?, extraction_status='ok', extraction_error=NULL, raw_json=?,
-               updated_at=? WHERE id=?""",
-            (
-                data.plan,
-                data.moneda,
-                data.prima_anual,
-                data.prima_total,
-                data.primas_fraccionadas,
-                data.suma_asegurada,
-                data.deducible,
-                data.vigencia,
-                data.fecha_cotizacion,
-                json.dumps([c.model_dump() for c in data.coberturas], ensure_ascii=False),
-                json.dumps(data.exclusiones, ensure_ascii=False),
-                data.observaciones,
-                data.confianza,
-                data.model_dump_json(),
-                db.now_iso(),
-                quote_id,
-            ),
+            "UPDATE documents SET company=?, company_name=?, extraction_status='ok', extraction_error=NULL, "
+            "confianza=?, raw_json=?, updated_at=? WHERE id=?",
+            (company, company_name, data.confianza, data.model_dump_json(), ts, document_id),
         )
+        conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (ts, doc["comparison_id"]))
 
 
-def _set_extraction_error(quote_id: int, message: str) -> None:
+def _set_extraction_error(document_id: int, message: str) -> None:
     with db.get_conn() as conn:
         conn.execute(
-            "UPDATE quotes SET extraction_status='error', extraction_error=?, updated_at=? WHERE id=?",
-            (message, db.now_iso(), quote_id),
+            "UPDATE documents SET extraction_status='error', extraction_error=?, updated_at=? WHERE id=?",
+            (message, db.now_iso(), document_id),
         )
 
 
 def run_analysis(comparison_id: int) -> None:
     comp = load_comparison(comparison_id)
-    usable = [q for q in comp["quotes"] if q["extraction_status"] in ("ok", "manual")]
     try:
-        text = extraction.generate_analysis(comp["client_name"], comp["ramo_label"], usable)
+        text = extraction.generate_analysis(comp["client_name"], comp["ramo_label"], comp["ready"])
     except Exception as exc:  # noqa: BLE001
         with db.get_conn() as conn:
             conn.execute(
@@ -265,7 +284,7 @@ def dashboard(request: Request, user: dict = Depends(auth.require_user)):
             "clientes": conn.execute("SELECT COUNT(*) FROM clients").fetchone()[0],
             "cotizaciones": conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0],
             "abiertas": conn.execute("SELECT COUNT(*) FROM comparisons WHERE status='abierta'").fetchone()[0],
-            "pdfs": conn.execute("SELECT COUNT(*) FROM quotes WHERE file_path IS NOT NULL").fetchone()[0],
+            "pdfs": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
         }
     return render(request, "dashboard.html", user=user, recent=recent, stats=stats)
 
@@ -428,8 +447,6 @@ def cotizacion_detalle(request: Request, comparison_id: int, user: dict = Depend
 @app.get("/cotizaciones/{comparison_id}/imprimir", response_class=HTMLResponse)
 def cotizacion_imprimir(request: Request, comparison_id: int, user: dict = Depends(auth.require_user)):
     comp = load_comparison(comparison_id)
-    comp["quotes"] = [q for q in comp["quotes"] if q["extraction_status"] in ("ok", "manual")]
-    comp["coverage_matrix"] = build_coverage_matrix(comp["quotes"])
     return render(request, "cotizacion_imprimir.html", user=user, comp=comp)
 
 
@@ -438,44 +455,50 @@ async def cotizacion_subir(
     request: Request,
     comparison_id: int,
     background: BackgroundTasks,
-    company: str = Form(...),
-    file: UploadFile = File(...),
+    company: str = Form("auto"),
+    files: list[UploadFile] = File(...),
     user: dict = Depends(auth.require_user),
 ):
     load_comparison(comparison_id)
-    if company not in config.COMPANIAS:
+    if company != "auto" and company not in config.COMPANIAS:
         raise HTTPException(400, "Compañía inválida")
-    filename = file.filename or "cotizacion.pdf"
-    if not filename.lower().endswith(".pdf"):
-        return redirect(f"/cotizaciones/{comparison_id}", "Solo se aceptan archivos PDF", "error")
-    content = await file.read()
-    if len(content) > config.MAX_UPLOAD_MB * 1024 * 1024:
-        return redirect(f"/cotizaciones/{comparison_id}", f"El PDF supera {config.MAX_UPLOAD_MB} MB", "error")
-    if not content.startswith(b"%PDF"):
-        return redirect(f"/cotizaciones/{comparison_id}", "El archivo no parece ser un PDF válido", "error")
-
     dest_dir = config.UPLOAD_DIR / str(comparison_id)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"{company}-{uuid.uuid4().hex}.pdf"
-    dest.write_bytes(content)
+    accepted, rejected = [], []
+    for file in files:
+        filename = file.filename or "cotizacion.pdf"
+        content = await file.read()
+        if not filename.lower().endswith(".pdf") or not content.startswith(b"%PDF"):
+            rejected.append(f"{filename} (no es PDF)")
+            continue
+        if len(content) > config.MAX_UPLOAD_MB * 1024 * 1024:
+            rejected.append(f"{filename} (supera {config.MAX_UPLOAD_MB} MB)")
+            continue
+        dest = dest_dir / f"{uuid.uuid4().hex}.pdf"
+        dest.write_bytes(content)
+        status = "pendiente" if extraction.api_available() else "error"
+        error = None if extraction.api_available() else "Sin clave de API: carga los planes a mano."
+        ts = db.now_iso()
+        with db.get_conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO documents (comparison_id, company, file_path, original_filename, extraction_status, "
+                "extraction_error, uploaded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (comparison_id, company, str(dest), filename, status, error, user["id"], ts, ts),
+            )
+            conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (ts, comparison_id))
+        if status == "pendiente":
+            background.add_task(run_extraction, int(cur.lastrowid))
+        accepted.append(filename)
 
-    status = "pendiente" if extraction.api_available() else "error"
-    error = None if extraction.api_available() else "Sin clave de API: carga los datos manualmente con Editar."
-    ts = db.now_iso()
-    with db.get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO quotes (comparison_id, company, file_path, original_filename, extraction_status, "
-            "extraction_error, uploaded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (comparison_id, company, str(dest), filename, status, error, user["id"], ts, ts),
-        )
-        conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (ts, comparison_id))
-    quote_id = int(cur.lastrowid)
-    if status == "pendiente":
-        background.add_task(run_extraction, quote_id)
-        msg = f"PDF de {config.COMPANIAS[company]} recibido. Claude lo está leyendo…"
+    if not accepted:
+        return redirect(f"/cotizaciones/{comparison_id}", "No se subió ningún PDF: " + "; ".join(rejected), "error")
+    if extraction.api_available():
+        msg = f"{len(accepted)} PDF recibido(s). Claude está leyendo los planes de cada uno…"
     else:
-        msg = f"PDF de {config.COMPANIAS[company]} guardado. {error}"
-    return redirect(f"/cotizaciones/{comparison_id}", msg)
+        msg = f"{len(accepted)} PDF guardado(s). Sin clave de API: carga los planes a mano."
+    if rejected:
+        msg += " Rechazados: " + "; ".join(rejected)
+    return redirect(f"/cotizaciones/{comparison_id}", msg, "ok" if not rejected else "warn")
 
 
 @app.post("/cotizaciones/{comparison_id}/manual")
@@ -488,12 +511,62 @@ def cotizacion_manual(
     ts = db.now_iso()
     with db.get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO quotes (comparison_id, company, extraction_status, uploaded_by, created_at, updated_at) "
-            "VALUES (?, ?, 'manual', ?, ?, ?)",
+            "INSERT INTO quotes (comparison_id, company, included, extraction_status, uploaded_by, created_at, updated_at) "
+            "VALUES (?, ?, 1, 'manual', ?, ?, ?)",
             (comparison_id, company, user["id"], ts, ts),
         )
         conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (ts, comparison_id))
     return redirect(f"/cotizaciones/{comparison_id}/items/{cur.lastrowid}/editar")
+
+
+def _get_document(comparison_id: int, document_id: int) -> dict[str, Any]:
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM documents WHERE id=? AND comparison_id=?", (document_id, comparison_id)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Documento no encontrado")
+    return dict(row)
+
+
+@app.post("/cotizaciones/{comparison_id}/docs/{document_id}/reprocesar")
+def documento_reprocesar(
+    comparison_id: int, document_id: int, background: BackgroundTasks, user: dict = Depends(auth.require_user)
+):
+    _get_document(comparison_id, document_id)
+    if not extraction.api_available():
+        return redirect(f"/cotizaciones/{comparison_id}", "No hay clave de API configurada", "error")
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE documents SET extraction_status='pendiente', extraction_error=NULL, updated_at=? WHERE id=?",
+            (db.now_iso(), document_id),
+        )
+    background.add_task(run_extraction, document_id)
+    return redirect(f"/cotizaciones/{comparison_id}", "Volviendo a leer el PDF…")
+
+
+@app.post("/cotizaciones/{comparison_id}/docs/{document_id}/eliminar")
+def documento_eliminar(comparison_id: int, document_id: int, user: dict = Depends(auth.require_user)):
+    doc = _get_document(comparison_id, document_id)
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM quotes WHERE document_id=?", (document_id,))
+        conn.execute("DELETE FROM documents WHERE id=?", (document_id,))
+        conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (db.now_iso(), comparison_id))
+    Path(doc["file_path"]).unlink(missing_ok=True)
+    return redirect(f"/cotizaciones/{comparison_id}", "PDF y sus planes eliminados")
+
+
+@app.get("/cotizaciones/{comparison_id}/docs/{document_id}/pdf")
+def documento_pdf(comparison_id: int, document_id: int, user: dict = Depends(auth.require_user)):
+    doc = _get_document(comparison_id, document_id)
+    if not Path(doc["file_path"]).exists():
+        raise HTTPException(404, "PDF no disponible")
+    name = doc["original_filename"] or "cotizacion.pdf"
+    return FileResponse(
+        doc["file_path"],
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}"},
+    )
 
 
 def _get_quote(comparison_id: int, quote_id: int) -> dict[str, Any]:
@@ -504,7 +577,7 @@ def _get_quote(comparison_id: int, quote_id: int) -> dict[str, Any]:
     q = db.quote_from_row(row)
     if q is None:
         raise HTTPException(404, "Cotización no encontrada")
-    q["company_label"] = config.COMPANIAS.get(q["company"], q["company"])
+    q["company_label"] = company_label(q["company"], q["company_name"])
     return q
 
 
@@ -535,7 +608,7 @@ def _parse_float(value: str) -> float | None:
 
 @app.post("/cotizaciones/{comparison_id}/items/{quote_id}/editar")
 async def quote_editar(request: Request, comparison_id: int, quote_id: int, user: dict = Depends(auth.require_user)):
-    _get_quote(comparison_id, quote_id)
+    q = _get_quote(comparison_id, quote_id)
     form = await request.form()
     get = lambda k: str(form.get(k, "")).strip()  # noqa: E731
 
@@ -557,16 +630,18 @@ async def quote_editar(request: Request, comparison_id: int, quote_id: int, user
             }
         )
     exclusiones = [line.strip() for line in get("exclusiones").splitlines() if line.strip()]
-    status = get("extraction_status") or "manual"
-    if status not in ("ok", "manual"):
-        status = "manual"
+    status = "ok" if q["extraction_status"] == "ok" else "manual"
+    company = get("company") if get("company") in config.COMPANIAS else q["company"]
+    company_name = get("company_name") or None if company == "otra" else None
     ts = db.now_iso()
     with db.get_conn() as conn:
         conn.execute(
-            """UPDATE quotes SET plan=?, moneda=?, prima_anual=?, prima_total=?, primas_fraccionadas=?,
-               suma_asegurada=?, deducible=?, vigencia=?, fecha_cotizacion=?, coberturas=?, exclusiones=?,
-               observaciones=?, extraction_status=?, extraction_error=NULL, updated_at=? WHERE id=?""",
+            """UPDATE quotes SET company=?, company_name=?, plan=?, moneda=?, prima_anual=?, prima_total=?,
+               primas_fraccionadas=?, suma_asegurada=?, deducible=?, vigencia=?, fecha_cotizacion=?, coberturas=?,
+               exclusiones=?, observaciones=?, extraction_status=?, extraction_error=NULL, updated_at=? WHERE id=?""",
             (
+                company,
+                company_name,
                 get("plan") or None,
                 get("moneda") or None,
                 _parse_float(get("prima_anual")),
@@ -588,57 +663,48 @@ async def quote_editar(request: Request, comparison_id: int, quote_id: int, user
     return redirect(f"/cotizaciones/{comparison_id}", "Datos guardados")
 
 
-@app.post("/cotizaciones/{comparison_id}/items/{quote_id}/reprocesar")
-def quote_reprocesar(
-    comparison_id: int, quote_id: int, background: BackgroundTasks, user: dict = Depends(auth.require_user)
-):
-    q = _get_quote(comparison_id, quote_id)
-    if not q["file_path"]:
-        return redirect(f"/cotizaciones/{comparison_id}", "Esta cotización no tiene PDF", "error")
-    if not extraction.api_available():
-        return redirect(f"/cotizaciones/{comparison_id}", "No hay clave de API configurada", "error")
+@app.post("/cotizaciones/{comparison_id}/items/{quote_id}/incluir")
+def quote_incluir(comparison_id: int, quote_id: int, included: int = Form(...), user: dict = Depends(auth.require_user)):
+    _get_quote(comparison_id, quote_id)
     with db.get_conn() as conn:
-        conn.execute(
-            "UPDATE quotes SET extraction_status='pendiente', extraction_error=NULL, updated_at=? WHERE id=?",
-            (db.now_iso(), quote_id),
+        conn.execute("UPDATE quotes SET included=?, updated_at=? WHERE id=?", (1 if included else 0, db.now_iso(), quote_id))
+    return redirect(f"/cotizaciones/{comparison_id}#comparativa")
+
+
+@app.post("/cotizaciones/{comparison_id}/items/{quote_id}/duplicar")
+def quote_duplicar(comparison_id: int, quote_id: int, user: dict = Depends(auth.require_user)):
+    q = _get_quote(comparison_id, quote_id)
+    ts = db.now_iso()
+    with db.get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO quotes (comparison_id, document_id, company, company_name, included, plan, moneda, prima_anual,
+               prima_total, primas_fraccionadas, suma_asegurada, deducible, vigencia, fecha_cotizacion, coberturas,
+               exclusiones, observaciones, extraction_status, uploaded_by, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?)""",
+            (
+                comparison_id, q.get("document_id"), q["company"], q["company_name"], f"{q['plan'] or 'Plan'} (copia)",
+                q["moneda"], q["prima_anual"], q["prima_total"], q["primas_fraccionadas"], q["suma_asegurada"],
+                q["deducible"], q["vigencia"], q["fecha_cotizacion"], json.dumps(q["coberturas"], ensure_ascii=False),
+                json.dumps(q["exclusiones"], ensure_ascii=False), q["observaciones"], user["id"], ts, ts,
+            ),
         )
-    background.add_task(run_extraction, quote_id)
-    return redirect(f"/cotizaciones/{comparison_id}", "Volviendo a leer el PDF…")
+    return redirect(f"/cotizaciones/{comparison_id}/items/{cur.lastrowid}/editar")
 
 
 @app.post("/cotizaciones/{comparison_id}/items/{quote_id}/eliminar")
 def quote_eliminar(comparison_id: int, quote_id: int, user: dict = Depends(auth.require_user)):
-    q = _get_quote(comparison_id, quote_id)
+    _get_quote(comparison_id, quote_id)
     with db.get_conn() as conn:
         conn.execute("DELETE FROM quotes WHERE id=?", (quote_id,))
         conn.execute("UPDATE comparisons SET updated_at=? WHERE id=?", (db.now_iso(), comparison_id))
-    if q["file_path"]:
-        try:
-            Path(q["file_path"]).unlink(missing_ok=True)
-        except OSError:
-            pass
-    return redirect(f"/cotizaciones/{comparison_id}", "Cotización eliminada")
-
-
-@app.get("/cotizaciones/{comparison_id}/items/{quote_id}/pdf")
-def quote_pdf(comparison_id: int, quote_id: int, user: dict = Depends(auth.require_user)):
-    q = _get_quote(comparison_id, quote_id)
-    if not q["file_path"] or not Path(q["file_path"]).exists():
-        raise HTTPException(404, "PDF no disponible")
-    name = q["original_filename"] or "cotizacion.pdf"
-    return FileResponse(
-        q["file_path"],
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}"},
-    )
+    return redirect(f"/cotizaciones/{comparison_id}", "Plan eliminado")
 
 
 @app.post("/cotizaciones/{comparison_id}/analisis")
 def cotizacion_analisis(comparison_id: int, background: BackgroundTasks, user: dict = Depends(auth.require_user)):
     comp = load_comparison(comparison_id)
-    usable = [q for q in comp["quotes"] if q["extraction_status"] in ("ok", "manual")]
-    if len(usable) < 2:
-        return redirect(f"/cotizaciones/{comparison_id}", "Necesitas al menos dos cotizaciones con datos", "error")
+    if len(comp["ready"]) < 2:
+        return redirect(f"/cotizaciones/{comparison_id}", "Necesitas al menos dos planes incluidos en la comparativa", "error")
     if not extraction.api_available():
         return redirect(f"/cotizaciones/{comparison_id}", "No hay clave de API configurada", "error")
     with db.get_conn() as conn:
@@ -674,10 +740,10 @@ def cotizacion_eliminar(comparison_id: int, user: dict = Depends(auth.require_ad
     comp = load_comparison(comparison_id)
     with db.get_conn() as conn:
         conn.execute("DELETE FROM quotes WHERE comparison_id=?", (comparison_id,))
+        conn.execute("DELETE FROM documents WHERE comparison_id=?", (comparison_id,))
         conn.execute("DELETE FROM comparisons WHERE id=?", (comparison_id,))
-    for q in comp["quotes"]:
-        if q["file_path"]:
-            Path(q["file_path"]).unlink(missing_ok=True)
+    for d in comp["documents"]:
+        Path(d["file_path"]).unlink(missing_ok=True)
     return redirect("/cotizaciones", "Comparativa eliminada")
 
 
@@ -985,9 +1051,9 @@ def cotizar_guardar(
                 for l in r["lines"]
             )
             conn.execute(
-                "INSERT INTO quotes (comparison_id, company, plan, moneda, prima_anual, suma_asegurada, deducible, "
+                "INSERT INTO quotes (comparison_id, company, included, plan, moneda, prima_anual, suma_asegurada, deducible, "
                 "coberturas, exclusiones, observaciones, extraction_status, uploaded_by, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 'manual', ?, ?, ?)",
+                "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, '[]', ?, 'manual', ?, ?, ?)",
                 (comp_id, r["company"], r["plan"], r["moneda"], r["total"], r["suma_asegurada"], r["deducible"],
                  json.dumps(r["coberturas"], ensure_ascii=False),
                  f"Preliminar según tarifario. Detalle: {detalle}", user["id"], ts, ts),

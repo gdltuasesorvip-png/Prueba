@@ -17,27 +17,29 @@
   </div>
 </div>
 
-{% if comp.pending %}<div class="flash flash-info">Claude está procesando… esta página se actualiza sola cada pocos segundos.</div>{% endif %}
+{% if comp.pending %}<div class="flash flash-info">Claude está leyendo los PDFs… esta página se actualiza sola cada pocos segundos.</div>{% endif %}
 
 <div class="grid-2">
   <div class="card">
-    <h2>Subir cotización en PDF</h2>
+    <h2>Subir cotizaciones en PDF</h2>
+    <p class="muted small">Puedes seleccionar varios PDFs a la vez. De cada uno se extraen <strong>todos los planes</strong> que contenga.</p>
     <form method="post" action="/cotizaciones/{{ comp.id }}/subir" enctype="multipart/form-data" class="form">
+      <label>Archivos PDF <input type="file" name="files" accept="application/pdf" multiple required></label>
       <label>Compañía
-        <select name="company" required>
-          {% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        <select name="company">
+          <option value="auto">Detectar automáticamente desde el PDF</option>
+          {% for k, v in COMPANIAS.items() if k != 'otra' %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </label>
-      <label>Archivo PDF <input type="file" name="file" accept="application/pdf" required></label>
       <button class="btn btn-primary">Subir y leer con Claude</button>
     </form>
     <details class="mt">
-      <summary>O cargar los datos a mano</summary>
-      <form method="post" action="/cotizaciones/{{ comp.id }}/manual" class="form inline">
+      <summary>O cargar un plan a mano</summary>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/manual" class="form inline mt">
         <select name="company">
           {% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
-        <button class="btn">Agregar manual</button>
+        <button class="btn">Agregar plan manual</button>
       </form>
     </details>
   </div>
@@ -62,42 +64,64 @@
   </div>
 </div>
 
+{% macro plan_row(q) %}
+  <tr class="plan-row {% if not q.included %}excluded{% endif %}">
+    <td>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/incluir" class="inline-form">
+        <input type="hidden" name="included" value="{{ 0 if q.included else 1 }}">
+        <button class="check-btn {% if q.included %}on{% endif %}" title="{{ 'Quitar de la comparativa' if q.included else 'Incluir en la comparativa' }}">{{ '✓' if q.included else '' }}</button>
+      </form>
+    </td>
+    <td>{{ q.company_label }}</td>
+    <td>{{ q.plan or '—' }}</td>
+    <td>{{ q.prima_anual | money(q.moneda) }}</td>
+    <td>{{ q.suma_asegurada or '—' }}</td>
+    <td>{{ q.deducible or '—' }}</td>
+    <td class="row-actions">
+      <a class="btn btn-sm" href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/editar">Editar</a>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/duplicar"><button class="btn btn-sm" title="Crear una variante de este plan">Duplicar</button></form>
+      <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/eliminar"><button class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este plan?')">Eliminar</button></form>
+    </td>
+  </tr>
+{% endmacro %}
+
 <div class="card">
-  <h2>Cotizaciones recibidas</h2>
-  {% if comp.quotes %}
-  <table class="table">
-    <thead><tr><th>Compañía</th><th>Plan</th><th>Prima anual</th><th>Estado</th><th>PDF</th><th></th></tr></thead>
+  <h2>Planes recibidos</h2>
+  <p class="muted small">Marca con ✓ los planes que quieres en la comparativa. Puedes incluir varios planes de la misma compañía.</p>
+  {% if comp.documents or comp.manual_quotes %}
+  <table class="table plans">
+    <thead><tr><th></th><th>Compañía</th><th>Plan</th><th>Prima anual</th><th>Suma asegurada</th><th>Deducible</th><th></th></tr></thead>
     <tbody>
-    {% for q in comp.quotes %}
-      <tr>
-        <td><strong>{{ q.company_label }}</strong></td>
-        <td>{{ q.plan or '—' }}</td>
-        <td>{{ q.prima_anual | money(q.moneda) }}</td>
-        <td>
-          {% if q.extraction_status == 'pendiente' %}<span class="pill pill-pendiente">Leyendo…</span>
-          {% elif q.extraction_status == 'ok' %}<span class="pill pill-ok">Leído{% if q.confianza %} · confianza {{ q.confianza }}{% endif %}</span>
-          {% elif q.extraction_status == 'manual' %}<span class="pill pill-manual">Manual</span>
-          {% else %}<span class="pill pill-error" title="{{ q.extraction_error }}">Error</span> <small class="muted">{{ q.extraction_error }}</small>{% endif %}
+    {% for d in comp.documents %}
+      <tr class="doc-row">
+        <td colspan="5">
+          <strong>PDF:</strong> <a href="/cotizaciones/{{ comp.id }}/docs/{{ d.id }}/pdf" target="_blank">{{ d.original_filename or 'cotizacion.pdf' }}</a>
+          · {{ d.company_label }}
+          {% if d.extraction_status == 'pendiente' %}<span class="pill pill-pendiente">Leyendo…</span>
+          {% elif d.extraction_status == 'ok' %}<span class="pill pill-ok">{{ d.quotes | length }} plan{{ 'es' if d.quotes | length != 1 }}{% if d.confianza %} · confianza {{ d.confianza }}{% endif %}</span>
+          {% else %}<span class="pill pill-error">Error</span> <small class="muted">{{ d.extraction_error }}</small>{% endif %}
         </td>
-        <td>{% if q.file_path %}<a href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/pdf" target="_blank">{{ q.original_filename or 'Ver PDF' }}</a>{% else %}—{% endif %}</td>
-        <td class="row-actions">
-          <a class="btn btn-sm" href="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/editar">Editar</a>
-          {% if q.file_path and q.extraction_status != 'pendiente' %}
-          <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/reprocesar"><button class="btn btn-sm">Releer</button></form>
+        <td colspan="2" class="row-actions">
+          {% if d.extraction_status != 'pendiente' %}
+          <form method="post" action="/cotizaciones/{{ comp.id }}/docs/{{ d.id }}/reprocesar"><button class="btn btn-sm">Releer</button></form>
           {% endif %}
-          <form method="post" action="/cotizaciones/{{ comp.id }}/items/{{ q.id }}/eliminar"><button class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar esta cotización?')">Eliminar</button></form>
+          <form method="post" action="/cotizaciones/{{ comp.id }}/docs/{{ d.id }}/eliminar"><button class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este PDF y todos sus planes?')">Eliminar PDF</button></form>
         </td>
       </tr>
+      {% for q in d.quotes %}{{ plan_row(q) }}{% endfor %}
     {% endfor %}
+    {% if comp.manual_quotes %}
+      <tr class="doc-row"><td colspan="7"><strong>Cargados a mano o por tarifario</strong></td></tr>
+      {% for q in comp.manual_quotes %}{{ plan_row(q) }}{% endfor %}
+    {% endif %}
     </tbody>
   </table>
-  {% else %}<p class="muted">Todavía no hay cotizaciones. Sube el PDF de cada compañía.</p>{% endif %}
+  {% else %}<p class="muted">Todavía no hay cotizaciones. Sube los PDFs de las compañías.</p>{% endif %}
 </div>
 
-{% set ready = comp.quotes | selectattr('extraction_status', 'in', ['ok', 'manual']) | list %}
-{% if ready %}
-<div class="card">
-  <h2>Comparativa</h2>
+{% if comp.ready %}
+<div class="card" id="comparativa">
+  <h2>Comparativa <span class="muted small">({{ comp.ready | length }} planes)</span></h2>
   {% include "_tabla_comparativa.html" %}
 </div>
 
@@ -105,7 +129,7 @@
   <div class="page-head">
     <h2>Análisis comparativo</h2>
     <form method="post" action="/cotizaciones/{{ comp.id }}/analisis">
-      <button class="btn btn-primary" {% if ready | length < 2 or comp.analysis_status == 'procesando' %}disabled{% endif %}>
+      <button class="btn btn-primary" {% if comp.ready | length < 2 or comp.analysis_status == 'procesando' %}disabled{% endif %}>
         {{ 'Regenerar análisis' if comp.analysis else 'Generar análisis con Claude' }}
       </button>
     </form>
@@ -113,7 +137,9 @@
   {% if comp.analysis_status == 'procesando' %}<p class="muted">Generando…</p>
   {% elif comp.analysis_status == 'error' %}<div class="flash flash-error">{{ comp.analysis_error }}</div>{% endif %}
   {% if comp.analysis %}<pre class="analysis">{{ comp.analysis }}</pre>
-  {% elif ready | length < 2 %}<p class="muted">Necesitas al menos dos cotizaciones con datos para generar el análisis.</p>{% endif %}
+  {% elif comp.ready | length < 2 %}<p class="muted">Necesitas al menos dos planes incluidos para generar el análisis.</p>{% endif %}
 </div>
+{% elif comp.quotes %}
+<div class="card"><p class="muted">No hay planes marcados para la comparativa. Marca al menos uno con ✓.</p></div>
 {% endif %}
 {% endblock %}

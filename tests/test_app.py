@@ -58,10 +58,12 @@ def test_full_flow_manual(client):
     r = client.post(
         f"/cotizaciones/{comp_id}/subir",
         data={"company": "mercantil"},
-        files={"file": ("mercantil.pdf", pdf, "application/pdf")},
+        files=[("files", ("mercantil.pdf", pdf, "application/pdf"))],
         follow_redirects=True,
     )
     assert "Sin clave de API" in r.text
+    comp = main.load_comparison(comp_id)
+    assert len(comp["documents"]) == 1 and comp["documents"][0]["extraction_status"] == "error"
     assert Path(os.environ["DATA_DIR"], "uploads", str(comp_id)).exists()
 
     r = client.post(f"/cotizaciones/{comp_id}/manual", data={"company": "oceanica"}, follow_redirects=False)
@@ -90,7 +92,7 @@ def test_full_flow_manual(client):
     assert [c["nombre"] for c in q["coberturas"]] == ["Hospitalización", "Maternidad"]
     assert q["exclusiones"] == ["Preexistencias", "Deportes extremos"]
 
-    # La primera (mercantil) está en error, así que la tabla solo muestra oceánica
+    # El PDF quedó en error sin planes, así que la tabla solo muestra el plan manual
     r = client.get(f"/cotizaciones/{comp_id}")
     assert "Plan Oro" in r.text and "Hospitalización" in r.text
     # Análisis requiere dos cotizaciones con datos
@@ -106,12 +108,29 @@ def test_extraction_pipeline_with_mock(client, monkeypatch):
     monkeypatch.setattr(extraction, "api_available", lambda: True)
 
     def fake_extract(pdf_path, company_label, ramo_label):
+        # Cada PDF trae dos planes; la compañía se deduce del nombre del archivo
+        name = pdf_path.read_bytes().decode(errors="ignore")
+        compania = "Mercantil Seguros, C.A." if "mercantil" in name else "Hispana de Seguros"
         return extraction.CotizacionExtraida(
-            compania=company_label, plan="Plan Hogar Plus", ramo_detectado="hogar", asegurado=None,
-            moneda="USD", prima_anual=420.0, prima_total=486.0, primas_fraccionadas="Semestral: 250",
-            suma_asegurada="USD 80.000", deducible="USD 200", vigencia="1 año", fecha_cotizacion="2026-10-01",
-            coberturas=[extraction.Cobertura(nombre="Incendio", suma_asegurada="USD 80.000", deducible=None, detalle=None)],
-            exclusiones=["Guerra"], observaciones=None, confianza="alta",
+            compania=compania, ramo_detectado="hogar", asegurado=None, moneda="USD", vigencia="1 año",
+            fecha_cotizacion="2026-10-01", observaciones_generales=None, confianza="alta",
+            planes=[
+                extraction.PlanExtraido(
+                    plan="Plan Básico", prima_anual=420.0, prima_total=486.0, primas_fraccionadas="Semestral: 250",
+                    suma_asegurada="USD 80.000", deducible="USD 200",
+                    coberturas=[extraction.Cobertura(nombre="Incendio", suma_asegurada="USD 80.000", deducible=None, detalle=None)],
+                    exclusiones=["Guerra"], observaciones=None,
+                ),
+                extraction.PlanExtraido(
+                    plan="Plan Plus", prima_anual=610.0, prima_total=700.0, primas_fraccionadas=None,
+                    suma_asegurada="USD 120.000", deducible="USD 150",
+                    coberturas=[
+                        extraction.Cobertura(nombre="Incendio", suma_asegurada="USD 120.000", deducible=None, detalle=None),
+                        extraction.Cobertura(nombre="Robo", suma_asegurada="USD 10.000", deducible=None, detalle=None),
+                    ],
+                    exclusiones=[], observaciones=None,
+                ),
+            ],
         )
 
     monkeypatch.setattr(extraction, "extract_quote", fake_extract)
@@ -119,21 +138,48 @@ def test_extraction_pipeline_with_mock(client, monkeypatch):
     client_id = int(r.headers["location"].rsplit("/", 1)[1])
     r = client.post("/cotizaciones/nueva", data={"client_id": client_id, "ramo": "hogar"}, follow_redirects=False)
     comp_id = int(r.headers["location"].rsplit("/", 1)[1])
-    for company in ("mercantil", "hispana"):
-        client.post(
-            f"/cotizaciones/{comp_id}/subir",
-            data={"company": company},
-            files={"file": (f"{company}.pdf", io.BytesIO(b"%PDF-1.4 x"), "application/pdf")},
-        )
+    # Dos PDFs de una sola vez, compañía detectada automáticamente
+    r = client.post(
+        f"/cotizaciones/{comp_id}/subir",
+        data={"company": "auto"},
+        files=[
+            ("files", ("a.pdf", io.BytesIO(b"%PDF-1.4 mercantil"), "application/pdf")),
+            ("files", ("b.pdf", io.BytesIO(b"%PDF-1.4 hispana"), "application/pdf")),
+        ],
+        follow_redirects=True,
+    )
+    assert "2 PDF recibido" in r.text
     comp = main.load_comparison(comp_id)
-    assert all(q["extraction_status"] == "ok" for q in comp["quotes"])
-    assert comp["coverage_matrix"][0]["nombre"] == "Incendio"
+    assert [d["company"] for d in comp["documents"]] == ["mercantil", "hispana"]
+    assert all(d["extraction_status"] == "ok" for d in comp["documents"])
+    assert len(comp["quotes"]) == 4 and len(comp["ready"]) == 4
+    assert [row["nombre"] for row in comp["coverage_matrix"]] == ["Incendio", "Robo"]
+    cheapest = next(q for q in comp["quotes"] if q["id"] == comp["cheapest_id"])
+    assert cheapest["plan"] == "Plan Básico" and cheapest["prima_anual"] == 420.0
     r = client.get(f"/cotizaciones/{comp_id}")
-    assert "Plan Hogar Plus" in r.text and "Incendio" in r.text
+    assert r.text.count("Plan Plus") >= 2 and "Hispana de Seguros" in r.text
+
+    # Quitar un plan de la comparativa
+    plus_id = next(q["id"] for q in comp["quotes"] if q["plan"] == "Plan Plus")
+    client.post(f"/cotizaciones/{comp_id}/items/{plus_id}/incluir", data={"included": 0})
+    comp = main.load_comparison(comp_id)
+    assert len(comp["ready"]) == 3
+    r = client.get(f"/cotizaciones/{comp_id}/imprimir")
+    assert r.text.count("Plan Plus") == 1
+
+    # Releer un PDF reemplaza sus planes sin duplicarlos
+    doc_id = comp["documents"][0]["id"]
+    client.post(f"/cotizaciones/{comp_id}/docs/{doc_id}/reprocesar")
+    assert len(main.load_comparison(comp_id)["quotes"]) == 4
 
     monkeypatch.setattr(extraction, "generate_analysis", lambda *a, **k: "Recomendación: Mercantil por precio.")
     r = client.post(f"/cotizaciones/{comp_id}/analisis", follow_redirects=True)
     assert "Recomendación: Mercantil" in r.text
+
+    # Eliminar el PDF elimina sus planes
+    client.post(f"/cotizaciones/{comp_id}/docs/{doc_id}/eliminar")
+    comp = main.load_comparison(comp_id)
+    assert len(comp["documents"]) == 1 and len(comp["quotes"]) == 2
 
 
 def test_rejects_non_pdf(client):
@@ -145,10 +191,10 @@ def test_rejects_non_pdf(client):
     r = client.post(
         f"/cotizaciones/{comp_id}/subir",
         data={"company": "hispana"},
-        files={"file": ("foto.jpg", io.BytesIO(b"\xff\xd8"), "image/jpeg")},
+        files=[("files", ("foto.jpg", io.BytesIO(b"\xff\xd8"), "image/jpeg"))],
         follow_redirects=True,
     )
-    assert "Solo se aceptan archivos PDF" in r.text
+    assert "No se subió ningún PDF" in r.text
 
 
 def test_user_management(client):
@@ -271,3 +317,41 @@ def test_tarifarios_and_quick_quote(client):
     r = client.get(f"/tarifarios/{tid}")
     assert r.status_code == 200 and "Guardar rangos" not in r.text
     client.post("/logout")
+
+
+def test_migration_from_old_schema(tmp_path, monkeypatch):
+    """Una base de datos de la versión anterior (PDF guardado en la cotización) se migra sola."""
+    import sqlite3
+    from app import config, db
+
+    old_db = tmp_path / "viejo.sqlite3"
+    conn = sqlite3.connect(old_db)
+    conn.executescript(
+        """
+        CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, full_name TEXT, role TEXT, active INTEGER, created_at TEXT);
+        CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT, document_id TEXT, phone TEXT, email TEXT, notes TEXT, created_by INTEGER, created_at TEXT);
+        CREATE TABLE comparisons (id INTEGER PRIMARY KEY, client_id INTEGER, ramo TEXT, title TEXT, notes TEXT, analysis TEXT,
+            analysis_status TEXT DEFAULT 'ninguno', analysis_error TEXT, status TEXT DEFAULT 'abierta', created_by INTEGER, created_at TEXT, updated_at TEXT);
+        CREATE TABLE quotes (id INTEGER PRIMARY KEY, comparison_id INTEGER, company TEXT, file_path TEXT, original_filename TEXT,
+            plan TEXT, moneda TEXT, prima_anual REAL, prima_total REAL, primas_fraccionadas TEXT, suma_asegurada TEXT, deducible TEXT,
+            vigencia TEXT, fecha_cotizacion TEXT, coberturas TEXT DEFAULT '[]', exclusiones TEXT DEFAULT '[]', observaciones TEXT,
+            confianza TEXT, extraction_status TEXT DEFAULT 'pendiente', extraction_error TEXT, raw_json TEXT, uploaded_by INTEGER,
+            created_at TEXT, updated_at TEXT);
+        INSERT INTO clients (id, name, created_at) VALUES (1, 'Viejo', 'x');
+        INSERT INTO comparisons (id, client_id, ramo, title, created_at, updated_at) VALUES (1, 1, 'salud', 'Vieja', 'x', 'x');
+        INSERT INTO quotes (comparison_id, company, file_path, original_filename, plan, prima_anual, extraction_status, created_at, updated_at)
+            VALUES (1, 'mercantil', '/tmp/viejo.pdf', 'viejo.pdf', 'Plan Viejo', 900, 'ok', 'x', 'x');
+        INSERT INTO quotes (comparison_id, company, plan, prima_anual, extraction_status, created_at, updated_at)
+            VALUES (1, 'hispana', 'Manual', 700, 'manual', 'x', 'x');
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(config, "DB_PATH", old_db)
+    db.init_db()
+    db.init_db()  # idempotente
+    comp = main.load_comparison(1)
+    assert len(comp["documents"]) == 1 and comp["documents"][0]["original_filename"] == "viejo.pdf"
+    assert comp["documents"][0]["quotes"][0]["plan"] == "Plan Viejo"
+    assert [q["plan"] for q in comp["manual_quotes"]] == ["Manual"]
+    assert len(comp["ready"]) == 2

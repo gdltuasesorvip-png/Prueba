@@ -25,7 +25,7 @@
     </div>
     <div class="muted">{{ comp.created_at[:10] }}</div>
   </div>
-  {% if comp.quotes %}
+  {% if comp.ready %}
   {% include "_tabla_comparativa.html" %}
   {% else %}<p>No hay cotizaciones con datos.</p>{% endif %}
   {% if comp.analysis %}

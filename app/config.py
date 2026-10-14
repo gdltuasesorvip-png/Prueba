@@ -39,6 +39,7 @@ COMPANIAS = {
     "mercantil": "Mercantil Seguros",
     "oceanica": "Oceánica de Seguros",
     "hispana": "Hispana de Seguros",
+    "otra": "Otra compañía",
 }
 
 RAMOS = {

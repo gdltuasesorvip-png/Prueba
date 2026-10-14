@@ -6,11 +6,14 @@ Herramienta web para un equipo de corredores de seguros que trabaja con **Mercan
 Las aseguradoras no ofrecen API ni tarifas digitales, así que el flujo es:
 
 1. El agente cotiza en el portal de cada compañía como siempre y descarga el PDF.
-2. Sube los PDFs a la app, uno por compañía, dentro de una "comparativa" del cliente.
-3. Claude lee cada PDF y extrae plan, prima anual, prima total, pago fraccionado, suma asegurada,
-   deducible, vigencia, coberturas con sus límites y exclusiones. El agente revisa y corrige lo que haga falta.
-4. La app arma la tabla comparativa lado a lado, marca la prima más baja y, con un clic, Claude redacta
-   el análisis con ventajas, desventajas y recomendación.
+2. Sube los PDFs a la app, varios a la vez, dentro de una "comparativa" del cliente. Claude detecta
+   de qué compañía es cada uno.
+3. Claude lee cada PDF y extrae **todos los planes** que contenga, cada uno con prima anual, prima total,
+   pago fraccionado, suma asegurada, deducible, coberturas con sus límites y exclusiones. El agente revisa
+   y corrige lo que haga falta, y marca qué planes entran en la comparativa.
+4. La app arma la tabla comparativa con un plan por columna (pueden ser varios de la misma compañía),
+   marca la prima más baja y, con un clic, Claude redacta el análisis con ventajas, desventajas y
+   recomendación.
 5. La "vista para el cliente" se imprime o se guarda como PDF para enviarla.
 
 ### Cotizador rápido por tarifario
