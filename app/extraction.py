@@ -107,7 +107,7 @@ def _client() -> anthropic.Anthropic:
             "No hay clave de API configurada (ANTHROPIC_API_KEY). "
             "Puedes cargar los datos manualmente."
         )
-    return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY, timeout=900, max_retries=3)
 
 
 def _handle_api_errors(exc: Exception) -> ExtractionError:
@@ -132,7 +132,8 @@ def extract_quote(pdf_path: Path, company_label: str | None, ramo_label: str) ->
         else f"Esta cotización es para el ramo {ramo_label}. Identifica la aseguradora que la emite."
     )
     try:
-        response = client.beta.messages.parse(
+        # Streaming: la librería lo exige para peticiones largas (PDFs grandes) y evita cortes por tiempo.
+        with client.beta.messages.stream(
             model=config.CLAUDE_MODEL,
             max_tokens=32000,
             betas=BETAS,
@@ -151,7 +152,8 @@ def extract_quote(pdf_path: Path, company_label: str | None, ramo_label: str) ->
                 }
             ],
             output_format=CotizacionExtraida,
-        )
+        ) as stream:
+            response = stream.get_final_message()
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
         raise _handle_api_errors(exc) from exc
 
@@ -159,11 +161,29 @@ def extract_quote(pdf_path: Path, company_label: str | None, ramo_label: str) ->
         raise ExtractionError("Claude no pudo procesar este documento (respuesta rechazada).")
     if response.stop_reason == "max_tokens":
         raise ExtractionError("El documento es demasiado largo para procesarlo de una vez.")
-    if response.parsed_output is None:
+    parsed = _parsed_from_message(response)
+    if parsed is None:
         raise ExtractionError("Claude no devolvió datos estructurados para este PDF.")
-    if not response.parsed_output.planes:
+    if not parsed.planes:
         raise ExtractionError("Claude no encontró planes con prima en este PDF.")
-    return response.parsed_output
+    return parsed
+
+
+def _parsed_from_message(message) -> CotizacionExtraida | None:
+    """Obtiene el objeto estructurado de la respuesta, venga ya parseado o como texto JSON."""
+    for block in message.content:
+        if getattr(block, "type", None) != "text":
+            continue
+        parsed = getattr(block, "parsed_output", None)
+        if isinstance(parsed, CotizacionExtraida):
+            return parsed
+        text = (getattr(block, "text", "") or "").strip()
+        if text:
+            try:
+                return CotizacionExtraida.model_validate_json(text)
+            except ValueError:
+                continue
+    return None
 
 
 def generate_analysis(client_name: str, ramo_label: str, quotes: list[dict]) -> str:

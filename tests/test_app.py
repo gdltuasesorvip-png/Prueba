@@ -355,3 +355,54 @@ def test_migration_from_old_schema(tmp_path, monkeypatch):
     assert comp["documents"][0]["quotes"][0]["plan"] == "Plan Viejo"
     assert [q["plan"] for q in comp["manual_quotes"]] == ["Manual"]
     assert len(comp["ready"]) == 2
+
+
+def test_extract_quote_uses_streaming(tmp_path, monkeypatch):
+    """extract_quote debe usar la API en modo streaming y leer la respuesta estructurada."""
+    from types import SimpleNamespace
+    from app import config
+
+    calls = {}
+
+    class FakeStream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get_final_message(self):
+            data = extraction.CotizacionExtraida(
+                compania="Oceánica de Seguros", ramo_detectado="salud", asegurado=None, moneda="USD", vigencia=None,
+                fecha_cotizacion=None, observaciones_generales=None, confianza="alta",
+                planes=[extraction.PlanExtraido(plan="Oro", prima_anual=100.0, prima_total=None, primas_fraccionadas=None,
+                                                suma_asegurada=None, deducible=None, coberturas=[], exclusiones=[], observaciones=None)],
+            )
+            # Simula un bloque de texto sin parsed_output: debe parsearse desde el JSON
+            block = SimpleNamespace(type="text", text=data.model_dump_json(), parsed_output=None)
+            return SimpleNamespace(stop_reason="end_turn", content=[block])
+
+    class FakeMessages:
+        def stream(self, **kwargs):
+            calls.update(kwargs)
+            return FakeStream()
+
+        def parse(self, **kwargs):
+            raise AssertionError("no debe usar parse() sin streaming")
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.beta = SimpleNamespace(messages=FakeMessages())
+
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(extraction.anthropic, "Anthropic", FakeClient)
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF-1.4 test")
+    result = extraction.extract_quote(pdf, None, "Salud")
+    assert result.compania == "Oceánica de Seguros" and result.planes[0].plan == "Oro"
+    assert calls["output_format"] is extraction.CotizacionExtraida
+    assert calls["messages"][0]["content"][0]["type"] == "document"
+    assert "Identifica la aseguradora" in calls["messages"][0]["content"][1]["text"]
+    assert calls["client_kwargs"]["timeout"] == 900
+    assert extraction.detect_company(result.compania) == "oceanica"
