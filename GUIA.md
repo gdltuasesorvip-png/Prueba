@@ -76,6 +76,16 @@ El disco guarda la base de datos y los PDFs, así que no se pierde nada al reini
    e impórtalo desde el tarifario.
 4. Con los tarifarios cargados, **Cotizar rápido** calcula las primas al instante.
 
+## Paso 8. Probar el asistente
+
+1. Menú **Asistente**. Escribe una pregunta en lenguaje natural, por ejemplo
+   "¿Cuánto pagaría una familia de 40, 38 y 6 años en cada plan de salud?" y pulsa **Preguntar**.
+2. Espera entre 10 y 60 segundos. Verás la respuesta y, debajo, la lista de consultas que el
+   asistente hizo por su cuenta para responder (buscar el cliente, leer sus comparativas, cotizar).
+3. Mientras los tarifarios sean los de EJEMPLO, el asistente avisará que las primas son de prueba.
+
+Qué es exactamente este asistente y cómo ampliarlo está explicado en `AGENTE.md`.
+
 ## Si algo falla
 
 - **La app dice "Sin clave de API"**: en Render, entra al servicio → **Environment** y revisa que

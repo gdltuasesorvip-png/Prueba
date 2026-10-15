@@ -32,6 +32,15 @@ probar la pantalla. Reemplázalos con los tarifarios reales.
 Incluye usuarios con clave y dos roles: **administrador** (crea y desactiva usuarios, restablece claves,
 elimina comparativas) y **agente** (clientes, comparativas y cotizaciones).
 
+### Asistente (tu primer agente)
+
+El menú **Asistente** es un agente: en vez de una llamada suelta a Claude, recibe herramientas para
+consultar clientes, comparativas y tarifarios, y decide por sí mismo cuáles usar hasta responder
+preguntas como "¿qué comparativas tiene Juan Pérez y cuál es la más barata?" o "cotiza salud para
+45, 42 y 8 años". Debajo de cada respuesta muestra qué herramientas usó. También funciona desde la
+terminal con `python -m app.agente "tu pregunta"`. Cómo está hecho y cómo agregarle herramientas:
+[AGENTE.md](AGENTE.md).
+
 ## Puesta en marcha local
 
 ```bash
@@ -80,6 +89,7 @@ pytest
 app/
   main.py         rutas web (login, clientes, comparativas, cotizaciones, usuarios)
   extraction.py   lectura de PDFs y análisis comparativo con Claude
+  agente.py       asistente: agente con herramientas sobre clientes, comparativas y tarifarios
   tarifas.py      tarifarios por edad y cotizador rápido
   db.py           esquema SQLite
   auth.py         usuarios, claves y sesiones

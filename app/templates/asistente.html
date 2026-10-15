@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Asistente{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Asistente</h1>
+    <p class="muted">Pregunta en lenguaje natural. El agente consulta clientes, comparativas y tarifarios por su cuenta y te responde.</p>
+  </div>
+</div>
+
+{% if not api_ok %}
+<div class="flash flash-warn">Sin clave de API: el asistente necesita <code>ANTHROPIC_API_KEY</code> para funcionar.</div>
+{% endif %}
+
+<form method="post" action="/asistente" class="card">
+  <div class="form">
+    <label>Tu pregunta
+      <textarea name="pregunta" rows="3" required placeholder="Ej.: ¿Cuánto pagaría una familia de 40, 38 y 6 años en cada plan de salud?">{{ pregunta or '' }}</textarea>
+    </label>
+  </div>
+  <div class="actions mt">
+    <button class="btn btn-primary" {% if not api_ok %}disabled{% endif %}>Preguntar</button>
+    <span class="muted small">Puede tardar entre 10 y 60 segundos según cuántas consultas haga el agente.</span>
+  </div>
+  <p class="muted small mt">Ejemplos:
+    <a href="#" onclick="return ej(this)">¿Qué comparativas tiene Juan Pérez y cuál es la más barata?</a> ·
+    <a href="#" onclick="return ej(this)">Cotiza salud para dos adultos de 45 y 42 años y un niño de 8</a> ·
+    <a href="#" onclick="return ej(this)">¿Qué comparativas de hogar siguen abiertas?</a> ·
+    <a href="#" onclick="return ej(this)">Resume la comparativa más reciente y dime qué plan recomendaría</a>
+  </p>
+</form>
+
+{% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+
+{% if resultado %}
+<div class="card">
+  <h2>Respuesta</h2>
+  <pre class="analysis">{{ resultado.respuesta }}</pre>
+</div>
+<div class="card">
+  <h2>Qué hizo el agente <span class="muted small">({{ resultado.vueltas }} vueltas, {{ resultado.pasos | length }} herramientas)</span></h2>
+  {% if not resultado.pasos %}
+  <p class="muted">Respondió sin consultar datos.</p>
+  {% else %}
+  <ol class="steps">
+    {% for p in resultado.pasos %}
+    <li>
+      <code>{{ p.herramienta }}</code>
+      <span class="muted small">{{ p.entrada | tojson }}</span>
+      {% if p.error %}<span class="tag tag-pyme">error</span>{% endif %}
+      <details><summary class="muted small">ver resultado</summary><pre class="analysis small">{{ p.resultado }}</pre></details>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+function ej(a) { document.querySelector('textarea[name=pregunta]').value = a.textContent; return false; }
+</script>
+{% endblock %}

@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 os.environ["ENV_FILE"] = "/nonexistent/.env"
-os.environ["DATA_DIR"] = tempfile.mkdtemp()
+os.environ.setdefault("DATA_DIR", tempfile.mkdtemp())  # compartido con tests/test_agente.py
 os.environ["SECRET_KEY"] = "clave-de-prueba"
 os.environ["ADMIN_USER"] = "admin"
 os.environ["ADMIN_PASSWORD"] = "admin123"

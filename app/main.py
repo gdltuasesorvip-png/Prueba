@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import auth, config, db, extraction, pdfgen, tarifas
+from . import agente, auth, config, db, extraction, pdfgen, tarifas
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1442,6 +1442,26 @@ def cotizar_guardar(
             )
     return redirect(f"/cotizaciones/{comp_id}", "Cotización preliminar guardada en la comparativa del cliente")
 
+
+
+# --------------------------------------------------------------------------- asistente (agente con herramientas)
+
+@app.get("/asistente", response_class=HTMLResponse)
+def asistente_form(request: Request, user: dict = Depends(auth.require_user)):
+    return render(request, "asistente.html", user=user, api_ok=extraction.api_available())
+
+
+@app.post("/asistente", response_class=HTMLResponse)
+def asistente_preguntar(request: Request, pregunta: str = Form(""), user: dict = Depends(auth.require_user)):
+    resultado, error = None, None
+    try:
+        resultado = agente.preguntar(pregunta)
+    except extraction.ExtractionError as exc:
+        error = str(exc)
+    return render(
+        request, "asistente.html", user=user, api_ok=extraction.api_available(),
+        pregunta=pregunta, resultado=resultado, error=error,
+    )
 
 
 # --------------------------------------------------------------------------- biblioteca de condicionados

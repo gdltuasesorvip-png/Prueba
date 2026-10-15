@@ -18,6 +18,7 @@
     <a href="/clientes" {% if request.url.path.startswith('/clientes') %}class="active"{% endif %}>Clientes</a>
     <a href="/tarifarios" {% if request.url.path.startswith('/tarifarios') %}class="active"{% endif %}>Tarifarios</a>
     <a href="/biblioteca" {% if request.url.path.startswith('/biblioteca') %}class="active"{% endif %}>Biblioteca</a>
+    <a href="/asistente" {% if request.url.path.startswith('/asistente') %}class="active"{% endif %}>Asistente</a>
     {% if user.role == 'admin' %}<a href="/usuarios" {% if request.url.path.startswith('/usuarios') %}class="active"{% endif %}>Usuarios</a>
     <a href="/configuracion" {% if request.url.path.startswith('/configuracion') %}class="active"{% endif %}>Oficina</a>{% endif %}
   </nav>
