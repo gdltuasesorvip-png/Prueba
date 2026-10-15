@@ -13,6 +13,10 @@ export type ClipSpec = {
   detail: string;
   /** Efecto de sonido al aparecer el dato destacado. */
   sfx: Sfx;
+  /** Expresión regular (como texto) de la palabra que, al decirse, dispara el dato destacado y su efecto. */
+  keyword: string;
+  /** Transición de entrada a este clip. */
+  enter: "fade" | "slide" | "wipe" | "slideUp";
 };
 
 export const CLIPS: ClipSpec[] = [
@@ -25,6 +29,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "¿Tienes $11.000 guardados?",
     detail: "Si no, mira esto hasta el final",
     sfx: "ding",
+    keyword: "guardad|once",
+    enter: "slide",
   },
   {
     src: "clips/enhanced/01-consultas.mp4",
@@ -35,6 +41,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "Consultas prenatales y estudios",
     detail: "Acumulado: $2.100",
     sfx: "ding",
+    keyword: "consulta",
+    enter: "fade",
   },
   {
     src: "clips/enhanced/02-adn-fetal.mp4",
@@ -45,6 +53,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "ADN fetal",
     detail: "Acumulado: $3.300",
     sfx: "ding",
+    keyword: "adn",
+    enter: "wipe",
   },
   {
     src: "clips/enhanced/03-parto.mp4",
@@ -55,6 +65,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "Parto natural o cesárea",
     detail: "Total: $6.600 – $11.300",
     sfx: "ding",
+    keyword: "parto|cesárea|cesarea",
+    enter: "slideUp",
   },
   {
     src: "clips/enhanced/04-complicaciones.mp4",
@@ -65,6 +77,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "¿Y si hay complicaciones?",
     detail: "La cuenta no tiene límite",
     sfx: "boom",
+    keyword: "complicaci",
+    enter: "slide",
   },
   {
     src: "clips/enhanced/05-seguro.mp4",
@@ -75,6 +89,8 @@ export const CLIPS: ClipSpec[] = [
     chapter: "La alternativa: un seguro",
     detail: "$80 – $100 al mes",
     sfx: "sparkle",
+    keyword: "seguro",
+    enter: "wipe",
   },
 ];
 

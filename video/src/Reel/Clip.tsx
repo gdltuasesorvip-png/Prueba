@@ -12,6 +12,8 @@ import {
 } from "remotion";
 import { ClipSpec, COLORS, FONT } from "./clips";
 import { KineticText } from "./KineticText";
+import { Subtitles } from "./Subtitles";
+import { TRANSCRIPT } from "./transcript";
 
 const CAPTION_IN = 14;
 const DETAIL_IN = CAPTION_IN + 22;
@@ -25,6 +27,11 @@ export const Clip: React.FC<{
 }> = ({ spec, index, total, durationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const words = TRANSCRIPT[spec.src.split("/").pop()!.replace(".mp4", "")] ?? [];
+  // Momento en que se dice la palabra clave del capítulo (p. ej. "complicaciones"); si no, el valor fijo.
+  const keyRe = new RegExp(spec.keyword);
+  const keyWord = words.find((w) => keyRe.test(w.w.toLowerCase()));
+  const detailAt = keyWord ? Math.round(keyWord.s * fps) : DETAIL_IN;
 
   const chipIn = spring({
     frame: frame - CAPTION_IN,
@@ -37,7 +44,7 @@ export const Clip: React.FC<{
     config: { damping: 15, stiffness: 120 },
   });
   const detailIn = spring({
-    frame: frame - DETAIL_IN,
+    frame: frame - detailAt,
     fps,
     config: { damping: 9, stiffness: 260, mass: 0.7 },
   });
@@ -50,17 +57,17 @@ export const Clip: React.FC<{
 
   // Sacudida breve en el capítulo de complicaciones.
   const isAlarm = spec.sfx === "boom";
-  const shakeT = frame - DETAIL_IN;
+  const shakeT = frame - detailAt;
   const shake =
     isAlarm && shakeT >= 0 && shakeT < 14
       ? Math.sin(shakeT * 2.4) * (14 - shakeT) * 1.2
       : 0;
   // Pulso de brillo en el dato destacado.
   const glow =
-    0.35 + 0.35 * Math.sin((frame - DETAIL_IN) / 6) * (frame > DETAIL_IN ? 1 : 0);
+    0.35 + 0.35 * Math.sin((frame - detailAt) / 6) * (frame > detailAt ? 1 : 0);
   // Flash de pantalla al golpe (solo complicaciones).
   const flash = isAlarm
-    ? interpolate(frame, [DETAIL_IN, DETAIL_IN + 10], [0.45, 0], {
+    ? interpolate(frame, [detailAt, detailAt + 10], [0.45, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       })
@@ -104,9 +111,13 @@ export const Clip: React.FC<{
       <Sequence from={CAPTION_IN + 2} durationInFrames={10}>
         <Audio src={staticFile("audio/pop.mp3")} volume={0.45} />
       </Sequence>
-      <Sequence from={DETAIL_IN} durationInFrames={50}>
-        <Audio src={staticFile(`audio/${spec.sfx}.mp3`)} volume={0.55} />
-      </Sequence>
+      {spec.sfx !== "ding" ? (
+        <Sequence from={detailAt} durationInFrames={50}>
+          <Audio src={staticFile(`audio/${spec.sfx}.mp3`)} volume={0.55} />
+        </Sequence>
+      ) : null}
+
+      <Subtitles words={words} accent={accent} />
 
       {/* Barra de progreso por capítulos */}
       <div

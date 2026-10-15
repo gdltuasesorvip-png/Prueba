@@ -1,7 +1,13 @@
 import React from "react";
 import { AbsoluteFill, Audio, interpolate, staticFile } from "remotion";
-import { TransitionSeries, linearTiming } from "@remotion/transitions";
+import {
+  TransitionPresentation,
+  TransitionSeries,
+  linearTiming,
+} from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
+import { slide } from "@remotion/transitions/slide";
+import { wipe } from "@remotion/transitions/wipe";
 import { z } from "zod";
 import { CLIPS } from "./clips";
 import { Clip } from "./Clip";
@@ -12,6 +18,20 @@ export const FPS = 30;
 export const INTRO_FRAMES = 80;
 export const OUTRO_FRAMES = 110;
 export const TRANSITION_FRAMES = 15;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const presentation = (kind: "fade" | "slide" | "wipe" | "slideUp"): TransitionPresentation<any> => {
+  switch (kind) {
+    case "slide":
+      return slide({ direction: "from-right" });
+    case "slideUp":
+      return slide({ direction: "from-bottom" });
+    case "wipe":
+      return wipe({ direction: "from-left" });
+    default:
+      return fade();
+  }
+};
 
 export const clipFrames = (i: number) =>
   Math.round((CLIPS[i].to - CLIPS[i].from) * FPS);
@@ -81,12 +101,12 @@ export const Reel: React.FC<z.infer<typeof reelSchema>> = ({
         <TransitionSeries.Sequence durationInFrames={INTRO_FRAMES}>
           <Intro title={title} subtitle={subtitle} />
         </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
         {CLIPS.map((spec, i) => (
           <React.Fragment key={spec.src}>
+            <TransitionSeries.Transition
+              presentation={presentation(spec.enter)}
+              timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+            />
             <TransitionSeries.Sequence durationInFrames={clipFrames(i)}>
               <Clip
                 spec={spec}
@@ -95,12 +115,12 @@ export const Reel: React.FC<z.infer<typeof reelSchema>> = ({
                 durationInFrames={clipFrames(i)}
               />
             </TransitionSeries.Sequence>
-            <TransitionSeries.Transition
-              presentation={fade()}
-              timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-            />
           </React.Fragment>
         ))}
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />
         <TransitionSeries.Sequence durationInFrames={OUTRO_FRAMES}>
           <Outro headline={outroHeadline} cta={cta} brand={brand} />
         </TransitionSeries.Sequence>
