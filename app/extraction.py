@@ -229,3 +229,45 @@ def generate_analysis(client_name: str, ramo_label: str, quotes: list[dict]) -> 
     if not text:
         raise ExtractionError("Claude devolvió una respuesta vacía.")
     return text
+
+
+RECOMMENDATION_PROMPT = """Eres un corredor de seguros en Venezuela que le escribe directamente a su cliente.
+Te dan el plan que el corredor decidió recomendar, los demás planes cotizados y las notas internas sobre el cliente.
+
+Escribe la recomendación en dos o tres frases, en segunda persona (tú), cálida y concreta: por qué ese plan le
+conviene a este cliente frente a las otras opciones (precio, suma asegurada, coberturas clave, deducible).
+Si hay una opción más barata, reconoce por qué aun así recomiendas esta. No uses listas ni títulos. No inventes
+datos: usa solo lo que te entregan. Máximo 70 palabras."""
+
+
+def generate_recommendation(client_name: str, ramo_label: str, chosen: dict, others: list[dict], notes: str | None) -> str:
+    client = _client()
+    def brief(q: dict) -> dict:
+        return {
+            "compania": q.get("company_label"), "plan": q.get("plan"), "moneda": q.get("moneda"),
+            "prima_anual": q.get("prima_anual"), "suma_asegurada": q.get("suma_asegurada"),
+            "deducible": q.get("deducible"), "coberturas": q.get("coberturas"), "exclusiones": q.get("exclusiones"),
+        }
+    user_text = (
+        f"Cliente: {client_name}\nRamo: {ramo_label}\nNotas internas: {notes or 'ninguna'}\n\n"
+        f"Plan recomendado:\n{json.dumps(brief(chosen), ensure_ascii=False, indent=2)}\n\n"
+        f"Otros planes cotizados:\n{json.dumps([brief(q) for q in others], ensure_ascii=False, indent=2)}"
+    )
+    try:
+        with client.beta.messages.stream(
+            model=config.CLAUDE_MODEL,
+            max_tokens=2000,
+            betas=BETAS,
+            fallbacks="default",
+            system=RECOMMENDATION_PROMPT,
+            messages=[{"role": "user", "content": user_text}],
+        ) as stream:
+            response = stream.get_final_message()
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        raise _handle_api_errors(exc) from exc
+    if response.stop_reason == "refusal":
+        raise ExtractionError("Claude no pudo redactar la recomendación.")
+    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    if not text:
+        raise ExtractionError("Claude devolvió una respuesta vacía.")
+    return text

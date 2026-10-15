@@ -107,3 +107,6 @@ h3 { font-size: .95rem; margin: 12px 0 4px; }
 .btn-wa { background: #25d366; border-color: #25d366; color: #fff; font-weight: 600; }
 .btn-wa:hover { background: #1ebe5a; }
 .share-textarea { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: .9rem; background: #fff; }
+ul.activity { list-style: none; margin: 0; padding: 0; }
+ul.activity li { padding: 7px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+ul.activity li:last-child { border-bottom: 0; }

@@ -69,6 +69,36 @@ def build_pdf(comp: dict[str, Any], settings: dict[str, str]) -> bytes:
         pdf.cell(width, 8, "No hay planes seleccionados en esta comparativa.")
         return bytes(pdf.output())
 
+    # Recomendación del asesor
+    r = comp.get("recommended")
+    if r:
+        y = pdf.get_y()
+        text = comp.get("recommendation") if comp.get("recommendation_status") == "ok" else ""
+        pdf.set_font("DejaVu", "", 9)
+        text_lines = _lines(pdf, text, width - 10) if text else 0
+        h = 16 + text_lines * 4.5 + (4 if text else 0)
+        pdf.set_fill_color(255, 251, 240)
+        pdf.set_draw_color(240, 180, 41)
+        pdf.set_line_width(0.5)
+        pdf.rect(pdf.l_margin, y, width, h, style="DF")
+        pdf.set_xy(pdf.l_margin + 5, y + 2)
+        pdf.set_font("DejaVu", "B", 8)
+        pdf.set_text_color(138, 90, 0)
+        pdf.cell(width - 10, 5, "★ RECOMENDADO POR TU ASESOR", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_x(pdf.l_margin + 5)
+        pdf.set_font("DejaVu", "B", 11)
+        pdf.set_text_color(*TEXT)
+        pdf.cell(width * 0.6, 7, _fit(pdf, f"{r['company_label']} · {r.get('plan') or 'Plan'}", width * 0.6), new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.set_text_color(*PRIMARY)
+        mensual = (fmt_money(r["prima_anual"] / 12, r["moneda"]) + " /mes · " + fmt_money(r["prima_anual"], r["moneda"]) + " al año") if r["prima_anual"] is not None else ""
+        pdf.cell(width * 0.4 - 10, 7, mensual, align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        if text:
+            pdf.set_x(pdf.l_margin + 5)
+            pdf.set_font("DejaVu", "", 9)
+            pdf.set_text_color(*TEXT)
+            pdf.multi_cell(width - 10, 4.5, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_y(y + h + 5)
+
     # Bloques por compañía (un plan por línea, como en los mensajes de WhatsApp)
     for g in comp.get("groups", []):
         color = _hex(g["color"])

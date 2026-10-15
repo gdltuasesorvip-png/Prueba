@@ -45,10 +45,24 @@ CREATE TABLE IF NOT EXISTS comparisons (
     analysis_error TEXT,
     status TEXT NOT NULL DEFAULT 'abierta',
     share_token TEXT,
+    recommended_quote_id INTEGER,
+    recommendation TEXT,
+    recommendation_status TEXT NOT NULL DEFAULT 'ninguno',
     created_by INTEGER REFERENCES users(id),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS share_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comparison_id INTEGER NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    quote_id INTEGER,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_share_events_comparison ON share_events(comparison_id);
 
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,8 +183,13 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Actualiza bases de datos creadas con versiones anteriores de la app."""
-    if "share_token" not in _columns(conn, "comparisons"):
+    ccols = _columns(conn, "comparisons")
+    if "share_token" not in ccols:
         conn.execute("ALTER TABLE comparisons ADD COLUMN share_token TEXT")
+    if "recommended_quote_id" not in ccols:
+        conn.execute("ALTER TABLE comparisons ADD COLUMN recommended_quote_id INTEGER")
+        conn.execute("ALTER TABLE comparisons ADD COLUMN recommendation TEXT")
+        conn.execute("ALTER TABLE comparisons ADD COLUMN recommendation_status TEXT NOT NULL DEFAULT 'ninguno'")
     cols = _columns(conn, "quotes")
     if "document_id" not in cols:
         conn.execute("ALTER TABLE quotes ADD COLUMN document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE")

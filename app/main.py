@@ -82,6 +82,24 @@ def fmt_num(value: float | None) -> str:
 templates.env.filters["num"] = fmt_num
 
 
+def fmt_when(value: str | None) -> str:
+    """Fecha ISO en UTC a texto corto en hora de Venezuela (UTC-4)."""
+    if not value:
+        return "—"
+    from datetime import datetime, timedelta, timezone
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local = dt.astimezone(timezone(timedelta(hours=-4)))
+    return local.strftime("%d/%m %I:%M %p").lower().replace("am", "a. m.").replace("pm", "p. m.")
+
+
+templates.env.filters["when"] = fmt_when
+
+
 def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", name.lower().strip())
 
@@ -112,10 +130,13 @@ def client_view_context(request: Request, comp: dict[str, Any]) -> dict[str, Any
     settings = db.get_settings()
     token = comp.get("share_token") or ensure_share_token(comp["id"])
     share_url = str(request.base_url).rstrip("/") + f"/c/{token}"
-    phone = re.sub(r"\D", "", comp.get("client_phone") or "")
+    phone = wa_number(comp.get("client_phone"))
     text = whatsapp_summary(comp, share_url, settings)
     wa = f"https://wa.me/{phone}?text={quote(text)}" if phone else f"https://wa.me/?text={quote(text)}"
-    return {"settings": settings, "share_url": share_url, "whatsapp_url": wa, "share_text": text}
+    return {
+        "settings": settings, "share_url": share_url, "whatsapp_url": wa, "share_text": text,
+        "office_wa": wa_number(settings.get("oficina_telefono")), "token": token,
+    }
 
 
 def company_label(company: str, company_name: str | None) -> str:
@@ -166,12 +187,59 @@ def load_comparison(comparison_id: int) -> dict[str, Any]:
     covered = [(q, a) for q, a in covered if a is not None]
     comp["best_cover_id"] = max(covered, key=lambda t: t[1])[0]["id"] if len(covered) > 1 else None
     comp["groups"] = build_groups(ready)
-    comp["pending"] = any(d["extraction_status"] == "pendiente" for d in documents) or comp[
-        "analysis_status"
-    ] == "procesando"
+    comp["recommended"] = next((q for q in ready if q["id"] == comp.get("recommended_quote_id")), None)
+    comp["activity"] = load_activity(comparison_id, quotes)
+    comp["pending"] = (
+        any(d["extraction_status"] == "pendiente" for d in documents)
+        or comp["analysis_status"] == "procesando"
+        or comp.get("recommendation_status") == "procesando"
+    )
     priced = [q for q in comp["ready"] if q["prima_anual"] is not None]
     comp["cheapest_id"] = min(priced, key=lambda q: q["prima_anual"])["id"] if len(priced) > 1 else None
     return comp
+
+
+def load_activity(comparison_id: int, quotes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Resumen de lo que el cliente hizo con el enlace: aperturas y planes que le interesaron."""
+    with db.get_conn() as conn:
+        events = db.rows_to_list(
+            conn.execute(
+                "SELECT * FROM share_events WHERE comparison_id=? ORDER BY created_at DESC, id DESC LIMIT 200",
+                (comparison_id,),
+            ).fetchall()
+        )
+    by_id = {q["id"]: q for q in quotes}
+    opens = [e for e in events if e["kind"] == "open"]
+    choices = []
+    for e in events:
+        if e["kind"] in ("choose", "question"):
+            q = by_id.get(e["quote_id"])
+            choices.append({**e, "label": q["label"] if q else (e.get("detail") or "")})
+    return {
+        "opens": len(opens),
+        "first_open": opens[-1]["created_at"] if opens else None,
+        "last_open": opens[0]["created_at"] if opens else None,
+        "choices": choices[:10],
+        "events": events[:10],
+    }
+
+
+def log_event(comparison_id: int, kind: str, quote_id: int | None = None, detail: str | None = None) -> None:
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO share_events (comparison_id, kind, quote_id, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+            (comparison_id, kind, quote_id, detail, db.now_iso()),
+        )
+
+
+def wa_number(text: str | None) -> str:
+    """Convierte un teléfono venezolano escrito de cualquier forma al formato que usa WhatsApp."""
+    digits = re.sub(r"\D", "", text or "")
+    if digits.startswith("0") and len(digits) == 11:
+        return "58" + digits[1:]
+    if len(digits) == 10 and digits[0] in "42":
+        return "58" + digits
+    return digits
 
 
 def build_groups(ready: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -354,13 +422,23 @@ def dashboard(request: Request, user: dict = Depends(auth.require_user)):
                 "ORDER BY c.updated_at DESC LIMIT 10"
             ).fetchall()
         )
+        novedades = db.rows_to_list(
+            conn.execute(
+                "SELECT e.kind, e.created_at, e.quote_id, c.id AS comparison_id, c.title, cl.name AS client_name, "
+                "q.plan, q.company, q.company_name "
+                "FROM share_events e JOIN comparisons c ON c.id = e.comparison_id JOIN clients cl ON cl.id = c.client_id "
+                "LEFT JOIN quotes q ON q.id = e.quote_id ORDER BY e.created_at DESC, e.id DESC LIMIT 12"
+            ).fetchall()
+        )
+        for n in novedades:
+            n["company_label"] = company_label(n["company"], n["company_name"]) if n["company"] else ""
         stats = {
             "clientes": conn.execute("SELECT COUNT(*) FROM clients").fetchone()[0],
             "cotizaciones": conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0],
             "abiertas": conn.execute("SELECT COUNT(*) FROM comparisons WHERE status='abierta'").fetchone()[0],
             "pdfs": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
         }
-    return render(request, "dashboard.html", user=user, recent=recent, stats=stats)
+    return render(request, "dashboard.html", user=user, recent=recent, stats=stats, novedades=novedades)
 
 
 # --------------------------------------------------------------------------- clientes
@@ -547,9 +625,44 @@ def comparativa_publica(request: Request, token: str):
         row = conn.execute("SELECT id FROM comparisons WHERE share_token=?", (token,)).fetchone()
     if row is None or len(token) < 8:
         raise HTTPException(404, "Esta comparativa no existe o el enlace ya no es válido")
+    log_event(row["id"], "open", detail=(request.headers.get("user-agent") or "")[:120])
     comp = load_comparison(row["id"])
     ctx = client_view_context(request, comp)
     return render(request, "cotizacion_cliente.html", user=None, comp=comp, public=True, pdf_url=f"/c/{token}/pdf", **ctx)
+
+
+def _comparison_by_token(token: str) -> int:
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT id FROM comparisons WHERE share_token=?", (token,)).fetchone()
+    if row is None or len(token) < 8:
+        raise HTTPException(404, "Esta comparativa no existe o el enlace ya no es válido")
+    return int(row["id"])
+
+
+@app.get("/c/{token}/elegir/{quote_id}")
+def comparativa_elegir(request: Request, token: str, quote_id: int):
+    comp_id = _comparison_by_token(token)
+    comp = load_comparison(comp_id)
+    q = next((x for x in comp["ready"] if x["id"] == quote_id), None)
+    if q is None:
+        raise HTTPException(404, "Plan no encontrado")
+    log_event(comp_id, "choose", quote_id=quote_id)
+    settings = db.get_settings()
+    text = (
+        f"Hola, soy {comp['client_name']}. Me interesa el plan *{q.get('plan') or 'Plan'}* de *{q['company_label']}* "
+        f"({fmt_money(q['prima_anual'], q['moneda'])} al año) de la comparativa de {comp['ramo_label'].lower()}. ¿Cómo seguimos?"
+    )
+    return RedirectResponse(f"https://wa.me/{wa_number(settings.get('oficina_telefono'))}?text={quote(text)}", status_code=303)
+
+
+@app.get("/c/{token}/pregunta")
+def comparativa_pregunta(request: Request, token: str):
+    comp_id = _comparison_by_token(token)
+    comp = load_comparison(comp_id)
+    log_event(comp_id, "question", detail="Tengo una pregunta")
+    settings = db.get_settings()
+    text = f"Hola, soy {comp['client_name']}. Tengo una pregunta sobre la comparativa de {comp['ramo_label'].lower()} que me enviaste."
+    return RedirectResponse(f"https://wa.me/{wa_number(settings.get('oficina_telefono'))}?text={quote(text)}", status_code=303)
 
 
 @app.get("/c/{token}/pdf")
@@ -559,6 +672,64 @@ def comparativa_publica_pdf(token: str):
     if row is None or len(token) < 8:
         raise HTTPException(404, "Esta comparativa no existe o el enlace ya no es válido")
     return _pdf_response(load_comparison(row["id"]))
+
+
+@app.post("/cotizaciones/{comparison_id}/recomendar")
+def cotizacion_recomendar(
+    comparison_id: int,
+    quote_id: int = Form(0),
+    recommendation: str = Form(""),
+    user: dict = Depends(auth.require_user),
+):
+    comp = load_comparison(comparison_id)
+    if quote_id and not any(q["id"] == quote_id for q in comp["quotes"]):
+        raise HTTPException(400, "Plan inválido")
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE comparisons SET recommended_quote_id=?, recommendation=?, recommendation_status='ok', updated_at=? WHERE id=?",
+            (quote_id or None, recommendation.strip() or None, db.now_iso(), comparison_id),
+        )
+    return redirect(f"/cotizaciones/{comparison_id}#recomendacion", "Recomendación guardada" if quote_id else "Recomendación retirada")
+
+
+@app.post("/cotizaciones/{comparison_id}/recomendar/sugerir")
+def cotizacion_recomendar_sugerir(
+    comparison_id: int, background: BackgroundTasks, quote_id: int = Form(...), user: dict = Depends(auth.require_user)
+):
+    comp = load_comparison(comparison_id)
+    if not any(q["id"] == quote_id for q in comp["ready"]):
+        return redirect(f"/cotizaciones/{comparison_id}#recomendacion", "Elige primero un plan incluido en la comparativa", "error")
+    if not extraction.api_available():
+        return redirect(f"/cotizaciones/{comparison_id}#recomendacion", "No hay clave de API configurada", "error")
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE comparisons SET recommended_quote_id=?, recommendation_status='procesando', updated_at=? WHERE id=?",
+            (quote_id, db.now_iso(), comparison_id),
+        )
+    background.add_task(run_recommendation, comparison_id, quote_id)
+    return redirect(f"/cotizaciones/{comparison_id}#recomendacion", "Claude está redactando la recomendación…")
+
+
+def run_recommendation(comparison_id: int, quote_id: int) -> None:
+    comp = load_comparison(comparison_id)
+    chosen = next((q for q in comp["ready"] if q["id"] == quote_id), None)
+    if chosen is None:
+        return
+    others = [q for q in comp["ready"] if q["id"] != quote_id]
+    try:
+        text = extraction.generate_recommendation(comp["client_name"], comp["ramo_label"], chosen, others, comp.get("notes"))
+    except Exception as exc:  # noqa: BLE001
+        with db.get_conn() as conn:
+            conn.execute(
+                "UPDATE comparisons SET recommendation_status='error', recommendation=?, updated_at=? WHERE id=?",
+                (f"No se pudo redactar: {exc}", db.now_iso(), comparison_id),
+            )
+        return
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE comparisons SET recommendation=?, recommendation_status='ok', updated_at=? WHERE id=?",
+            (text, db.now_iso(), comparison_id),
+        )
 
 
 @app.post("/cotizaciones/{comparison_id}/compartir/renovar")

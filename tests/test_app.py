@@ -462,3 +462,64 @@ def test_share_link_pdf_and_select_all(client, monkeypatch):
     # Renovar enlace invalida el anterior
     client.post(f"/cotizaciones/{comp_id}/compartir/renovar")
     assert anon.get(f"/c/{token}").status_code == 404
+
+
+def test_recommendation_and_client_activity(client, monkeypatch):
+    login(client)
+    client.post("/configuracion", data={"oficina_nombre": "Oficina Díaz", "oficina_telefono": "0414-1234567"})
+    r = client.post("/clientes/nuevo", data={"name": "Pedro Gómez"}, follow_redirects=False)
+    client_id = int(r.headers["location"].rsplit("/", 1)[1])
+    r = client.post("/cotizaciones/nueva", data={"client_id": client_id, "ramo": "salud", "notes": "Familia joven, esperan bebé"}, follow_redirects=False)
+    comp_id = int(r.headers["location"].rsplit("/", 1)[1])
+    for company, plan, prima in (("mercantil", "Plus", "1850"), ("hispana", "Familiar", "1390")):
+        r = client.post(f"/cotizaciones/{comp_id}/manual", data={"company": company}, follow_redirects=False)
+        client.post(r.headers["location"], data={"plan": plan, "moneda": "USD", "prima_anual": prima})
+    comp = main.load_comparison(comp_id)
+    plus_id = next(q["id"] for q in comp["quotes"] if q["plan"] == "Plus")
+
+    # Recomendación escrita a mano
+    r = client.post(f"/cotizaciones/{comp_id}/recomendar", data={"quote_id": plus_id, "recommendation": "Pedro, por la maternidad te conviene Plus."}, follow_redirects=True)
+    assert "Recomendación guardada" in r.text
+    comp = main.load_comparison(comp_id)
+    assert comp["recommended"]["plan"] == "Plus"
+
+    # Texto sugerido por Claude (simulado)
+    monkeypatch.setattr(extraction, "api_available", lambda: True)
+    captured = {}
+    def fake_reco(client_name, ramo_label, chosen, others, notes):
+        captured.update(chosen=chosen["plan"], others=[o["plan"] for o in others], notes=notes)
+        return "Pedro, con un bebé en camino, Plus cubre maternidad."
+    monkeypatch.setattr(extraction, "generate_recommendation", fake_reco)
+    client.post(f"/cotizaciones/{comp_id}/recomendar/sugerir", data={"quote_id": plus_id})
+    comp = main.load_comparison(comp_id)
+    assert comp["recommendation"].startswith("Pedro, con un bebé") and comp["recommendation_status"] == "ok"
+    assert captured == {"chosen": "Plus", "others": ["Familiar"], "notes": "Familia joven, esperan bebé"}
+
+    # El cliente abre el enlace, elige un plan y pregunta
+    r = client.get(f"/cotizaciones/{comp_id}")
+    token = r.text.split('id="share-url" value="')[1].split("/c/")[1].split('"')[0]
+    anon = TestClient(main.app)
+    r = anon.get(f"/c/{token}")
+    assert "Recomendado por tu asesor" in r.text and "Quiero este plan" in r.text and "Tengo una pregunta" in r.text
+    assert "Pedro, con un bebé" in r.text
+    r = anon.get(f"/c/{token}/elegir/{plus_id}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("https://wa.me/584141234567?text=")
+    assert "Plus" in r.headers["location"] and "Pedro%20G" in r.headers["location"]
+    r = anon.get(f"/c/{token}/pregunta", follow_redirects=False)
+    assert r.headers["location"].startswith("https://wa.me/584141234567")
+    anon.get(f"/c/{token}")
+
+    comp = main.load_comparison(comp_id)
+    assert comp["activity"]["opens"] == 2
+    assert [e["kind"] for e in comp["activity"]["choices"]] == ["question", "choose"]
+    r = client.get(f"/cotizaciones/{comp_id}")
+    assert "Abrió la comparativa 2 veces" in r.text and "Quiero este plan" in r.text
+    r = client.get("/")
+    assert "Novedades de clientes" in r.text and "Pedro Gómez" in r.text and "Quiere un plan" in r.text
+    # PDF con recomendación
+    r = client.get(f"/cotizaciones/{comp_id}/pdf")
+    assert r.status_code == 200 and r.content.startswith(b"%PDF")
+    # Teléfonos venezolanos a formato WhatsApp
+    assert main.wa_number("0414-1234567") == "584141234567"
+    assert main.wa_number("+58 412 555 1234") == "584125551234"
+    assert main.wa_number("412-5551234") == "584125551234"

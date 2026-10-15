@@ -54,6 +54,24 @@
     .badge-best { background: #e3f5ea; color: var(--ok); }
     .badge-cover { background: #e7effa; color: var(--info); }
     @media (max-width: 520px) { .plan-item { flex-direction: column; align-items: stretch; } .plan-price { text-align: left; } }
+    .btn-head { margin-top: 10px; background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.5); color: #fff; }
+    .reco { background: #fff; border: 2px solid #f0b429; border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 6px 20px rgba(240,180,41,.15); }
+    .reco-tag { display: inline-block; background: #fff4d6; color: #8a5a00; font-weight: 700; font-size: .8rem; padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
+    .reco-body { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+    .reco-company { font-weight: 700; font-size: .95rem; }
+    .reco-name { font-size: 1.35rem; font-weight: 800; }
+    .reco-meta { color: var(--muted); font-size: .85rem; }
+    .reco-price { text-align: right; }
+    .reco-price .monthly { font-size: 1.6rem; font-weight: 800; color: var(--primary); }
+    .reco-price .monthly small { font-size: .7rem; color: var(--muted); font-weight: 500; margin-left: 3px; }
+    .reco-price .yearly { color: var(--muted); font-size: .85rem; }
+    .reco-text { font-size: 1.02rem; line-height: 1.5; margin: 12px 0 0; color: var(--text); font-style: italic; }
+    .reco-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    .reco-actions .btn-wa { font-size: 1rem; padding: 10px 18px; }
+    .plan-item.reco-item { background: #fffbf0; }
+    .badge-reco { background: #fff4d6; color: #8a5a00; }
+    .choose { display: inline-block; margin-top: 8px; font-size: .85rem; font-weight: 600; color: #128c4a; }
+    @media (max-width: 520px) { .reco-price { text-align: left; } }
     .client-footer { margin-top: 24px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 12px; }
     .client-footer strong { color: var(--text); }
     @media print { .noprint { display: none !important; } body { background: #fff; } .client-page { padding: 0; max-width: none; } .client-head { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .pcard { break-inside: avoid; } }
@@ -73,6 +91,7 @@
     <div>
       <h1>Comparativa de seguros · {{ comp.ramo_label }}</h1>
       <div class="sub">Preparada para <strong>{{ comp.client_name }}</strong>{% if comp.client_document %} · {{ comp.client_document }}{% endif %} · {{ comp.created_at[:10] }}</div>
+      {% if public and office_wa %}<a class="btn btn-head" href="/c/{{ token }}/pregunta">Tengo una pregunta</a>{% endif %}
     </div>
     <div class="office">
       {% if settings.oficina_nombre %}<div><strong>{{ settings.oficina_nombre }}</strong></div>{% endif %}
@@ -85,6 +104,32 @@
   {% set priced = comp.ready | selectattr('prima_anual') | list %}
   {% set max_price = (priced | map(attribute='prima_anual') | max) if priced else 0 %}
   {% if comp.ready %}
+  {% if comp.recommended %}
+  {% set r = comp.recommended %}
+  <section class="reco">
+    <div class="reco-tag">★ Recomendado por tu asesor{% if comp.created_by_name and not settings.oficina_nombre %} · {{ comp.created_by_name }}{% endif %}</div>
+    <div class="reco-body">
+      <div class="reco-plan">
+        <div class="reco-company" style="color: {{ COMPANY_COLORS.get(r.company, COMPANY_COLORS['otra']) }}">{{ r.company_label }}</div>
+        <div class="reco-name">{{ r.plan or 'Plan' }}</div>
+        <div class="reco-meta">{% if r.suma_asegurada %}Suma asegurada {{ r.suma_asegurada }}{% endif %}{% if r.deducible %} · Deducible {{ r.deducible }}{% endif %}</div>
+      </div>
+      <div class="reco-price">
+        {% if r.prima_anual is not none %}
+        <div class="monthly">{{ (r.prima_anual / 12) | money(r.moneda) }}<small>/mes aprox.</small></div>
+        <div class="yearly">{{ r.prima_anual | money(r.moneda) }} al año</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if comp.recommendation and comp.recommendation_status == 'ok' %}<p class="reco-text">“{{ comp.recommendation }}”</p>{% endif %}
+    {% if public and office_wa %}
+    <div class="reco-actions">
+      <a class="btn btn-wa" href="/c/{{ token }}/elegir/{{ r.id }}">Quiero este plan</a>
+      <a class="btn btn-ghost" href="/c/{{ token }}/pregunta">Tengo una pregunta</a>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
   <div class="groups">
     {% for g in comp.groups %}
     <section class="cgroup" style="--cc: {{ g.color }}">
@@ -95,7 +140,7 @@
       </header>
       <ul class="plans-list">
         {% for q in g.quotes %}
-        <li class="plan-item {% if q.id == comp.cheapest_id %}best{% endif %}">
+        <li class="plan-item {% if q.id == comp.cheapest_id %}best{% endif %} {% if comp.recommended and q.id == comp.recommended.id %}reco-item{% endif %}">
           <div class="plan-main">
             <div class="plan-name">{{ q.plan or 'Plan' }}</div>
             <div class="plan-meta">
@@ -103,6 +148,7 @@
               {% if q.deducible %}<span>Deducible {{ q.deducible }}</span>{% endif %}
               {% if q.primas_fraccionadas %}<span>{{ q.primas_fraccionadas }}</span>{% endif %}
             </div>
+            {% if comp.recommended and q.id == comp.recommended.id %}<span class="badge badge-reco">★ Recomendado</span>{% endif %}
             {% if q.id == comp.cheapest_id %}<span class="badge badge-best">Más económico</span>{% endif %}
             {% if q.id == comp.best_cover_id %}<span class="badge badge-cover">Mayor suma asegurada</span>{% endif %}
           </div>
@@ -114,6 +160,7 @@
             {% else %}
             <div class="monthly muted">Por confirmar</div>
             {% endif %}
+            {% if public and office_wa %}<a class="choose" href="/c/{{ token }}/elegir/{{ q.id }}">Quiero este plan →</a>{% endif %}
           </div>
         </li>
         {% endfor %}

@@ -114,7 +114,7 @@ function copyShare() {
       </form>
     </td>
     <td>{{ q.company_label }}</td>
-    <td>{{ q.plan or '—' }}</td>
+    <td>{% if comp.recommended and comp.recommended.id == q.id %}<span title="Recomendado">★</span> {% endif %}{{ q.plan or '—' }}</td>
     <td>{{ q.prima_anual | money(q.moneda) }}</td>
     <td>{{ q.suma_asegurada or '—' }}</td>
     <td>{{ q.deducible or '—' }}</td>
@@ -169,6 +169,47 @@ function copyShare() {
 </div>
 
 {% if comp.ready %}
+<div class="grid-2">
+  <div class="card" id="recomendacion">
+    <h2>★ Tu recomendación</h2>
+    <p class="muted small">El cliente la ve destacada al inicio de la comparativa, con tus razones.</p>
+    {% if comp.recommendation_status == 'procesando' %}<div class="flash flash-info">Claude está redactando el texto…</div>
+    {% elif comp.recommendation_status == 'error' %}<div class="flash flash-error">{{ comp.recommendation }}</div>{% endif %}
+    <form method="post" action="/cotizaciones/{{ comp.id }}/recomendar" class="form">
+      <label>Plan recomendado
+        <select name="quote_id">
+          <option value="0">Sin recomendación</option>
+          {% for q in comp.ready %}<option value="{{ q.id }}" {% if comp.recommended and comp.recommended.id == q.id %}selected{% endif %}>{{ q.company_label }} · {{ q.plan or 'Plan' }} · {{ q.prima_anual | money(q.moneda) }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Por qué lo recomiendas (el cliente lo lee tal cual)
+        <textarea name="recommendation" rows="4" placeholder="Carlos, para tu familia te recomiendo…">{{ comp.recommendation if comp.recommendation_status == 'ok' else '' }}</textarea>
+      </label>
+      <div class="actions">
+        <button class="btn btn-primary">Guardar recomendación</button>
+        <button class="btn" formaction="/cotizaciones/{{ comp.id }}/recomendar/sugerir" {% if comp.recommendation_status == 'procesando' %}disabled{% endif %}>Que Claude redacte el texto</button>
+      </div>
+    </form>
+  </div>
+  <div class="card" id="actividad">
+    <h2>Actividad del cliente</h2>
+    {% if comp.activity.opens %}
+    <p><strong>Abrió la comparativa {{ comp.activity.opens }} {{ 'vez' if comp.activity.opens == 1 else 'veces' }}.</strong><br>
+      <span class="muted">Primera vez {{ comp.activity.first_open | when }} · última {{ comp.activity.last_open | when }}</span></p>
+    {% else %}
+    <p class="muted">Todavía no ha abierto el enlace. Cuando lo abra, lo verás aquí y en el inicio.</p>
+    {% endif %}
+    {% if comp.activity.choices %}
+    <ul class="activity">
+      {% for e in comp.activity.choices %}
+      <li><span class="pill {{ 'pill-ok' if e.kind == 'choose' else 'pill-manual' }}">{{ 'Quiero este plan' if e.kind == 'choose' else 'Pregunta' }}</span> {{ e.label }} <span class="muted small">{{ e.created_at | when }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if not office_wa %}<p class="flash flash-warn small">Para que el cliente pueda tocar "Quiero este plan" y escribirte por WhatsApp, pon tu teléfono en el menú <a href="/configuracion">Oficina</a>.</p>{% endif %}
+  </div>
+</div>
+
 <div class="card" id="comparativa">
   <h2>Comparativa <span class="muted small">({{ comp.ready | length }} planes, de menor a mayor prima)</span></h2>
   {% include "_tabla_comparativa.html" %}

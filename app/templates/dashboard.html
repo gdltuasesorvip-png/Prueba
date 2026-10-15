@@ -12,6 +12,21 @@
   <div class="stat"><span>{{ stats.pdfs }}</span>PDFs procesados</div>
 </div>
 <div class="card">
+  <h2>Novedades de clientes</h2>
+  {% if novedades %}
+  <ul class="activity">
+    {% for n in novedades %}
+    <li>
+      {% if n.kind == 'open' %}<span class="pill pill-pendiente">Abrió</span>{% elif n.kind == 'choose' %}<span class="pill pill-ok">Quiere un plan</span>{% else %}<span class="pill pill-manual">Pregunta</span>{% endif %}
+      <strong>{{ n.client_name }}</strong> · <a href="/cotizaciones/{{ n.comparison_id }}">{{ n.title }}</a>
+      {% if n.kind == 'choose' and n.plan %}· {{ n.company_label }} {{ n.plan }}{% endif %}
+      <span class="muted small">{{ n.created_at | when }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Aquí verás cuándo tus clientes abren las comparativas y qué plan les interesa.</p>{% endif %}
+</div>
+<div class="card">
   <h2>Comparativas recientes</h2>
   {% if recent %}
   <table class="table">
