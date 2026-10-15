@@ -30,6 +30,9 @@ en otro proyecto:
 
 ## Token de acceso (obligatorio)
 
+La forma rápida es correr `bash scripts/omniroute-setup.sh` desde la raíz del repositorio: instala y
+arranca OmniRoute, crea el token y muestra la línea `export OMNIROUTE_API_KEY=...`. A mano:
+
 El endpoint MCP de OmniRoute responde `401 Authentication required` sin token. Crea uno en el panel
 de OmniRoute (http://localhost:20128, inicia sesión con la clave de administrador) o con la CLI una vez
 autenticada:

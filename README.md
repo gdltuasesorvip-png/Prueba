@@ -98,8 +98,9 @@ Claude Code el plugin se habilita solo gracias a `.claude/settings.json`. En otr
 /plugin install omniroute --marketplace gdltuasesorvip-png/Prueba
 ```
 
-Requiere tener OmniRoute corriendo en el puerto 20128 (`npm install -g omniroute` y luego `omniroute`).
-Más detalles en `plugins/omniroute/README.md`.
+Requiere OmniRoute corriendo en el puerto 20128 y un token de acceso en la variable `OMNIROUTE_API_KEY`.
+El script `scripts/omniroute-setup.sh` instala OmniRoute, lo arranca, crea el token y te muestra la línea
+`export` que debes agregar a tu shell. Más detalles en `plugins/omniroute/README.md`.
 
 ## Publicarla para el equipo
 
