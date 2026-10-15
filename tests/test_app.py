@@ -500,7 +500,7 @@ def test_recommendation_and_client_activity(client, monkeypatch):
     token = r.text.split('id="share-url" value="')[1].split("/c/")[1].split('"')[0]
     anon = TestClient(main.app)
     r = anon.get(f"/c/{token}")
-    assert "Recomendado por tu asesor" in r.text and "Quiero este plan" in r.text and "Tengo una pregunta" in r.text
+    assert "Recomendado por" in r.text and "Quiero este plan" in r.text and "Tengo una pregunta" in r.text
     assert "Pedro, con un bebé" in r.text
     r = anon.get(f"/c/{token}/elegir/{plus_id}", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("https://wa.me/584141234567?text=")
@@ -523,3 +523,48 @@ def test_recommendation_and_client_activity(client, monkeypatch):
     assert main.wa_number("0414-1234567") == "584141234567"
     assert main.wa_number("+58 412 555 1234") == "584125551234"
     assert main.wa_number("412-5551234") == "584125551234"
+
+
+def test_advisor_profile_routes_whatsapp(client):
+    login(client)
+    client.post("/configuracion", data={"oficina_nombre": "Oficina Díaz", "oficina_telefono": "0414-0000000"})
+    client.post("/usuarios/nuevo", data={"username": "luis", "full_name": "Luis Pérez", "password": "clave123", "role": "agente", "phone": "0416-7778899"})
+    client.post("/logout")
+    login(client, "luis", "clave123")
+    r = client.get("/perfil")
+    assert "0416-7778899" in r.text
+    client.post("/perfil", data={"full_name": "Luis Pérez", "phone": "0416-7778899", "title": "Asesor de seguros", "email": ""})
+
+    r = client.post("/clientes/nuevo", data={"name": "Ana Torres"}, follow_redirects=False)
+    client_id = int(r.headers["location"].rsplit("/", 1)[1])
+    r = client.post("/cotizaciones/nueva", data={"client_id": client_id, "ramo": "salud"}, follow_redirects=False)
+    comp_id = int(r.headers["location"].rsplit("/", 1)[1])
+    r = client.post(f"/cotizaciones/{comp_id}/manual", data={"company": "hispana"}, follow_redirects=False)
+    client.post(r.headers["location"], data={"plan": "Familiar", "moneda": "USD", "prima_anual": "1000"})
+    comp = main.load_comparison(comp_id)
+    quote_id = comp["ready"][0]["id"]
+    r = client.get(f"/cotizaciones/{comp_id}")
+    token = r.text.split('id="share-url" value="')[1].split("/c/")[1].split('"')[0]
+
+    anon = TestClient(main.app)
+    r = anon.get(f"/c/{token}")
+    assert "Luis Pérez" in r.text and "Asesor de seguros" in r.text and "Recomendado por" not in r.text
+    r = anon.get(f"/c/{token}/elegir/{quote_id}", follow_redirects=False)
+    assert r.headers["location"].startswith("https://wa.me/584167778899?text=")  # el asesor, no la oficina
+    # el resumen de WhatsApp firma con el asesor y la oficina
+    text = main.whatsapp_summary(comp, "https://x/c/t", {"oficina_nombre": "Oficina Díaz"})
+    assert text.endswith("Luis Pérez · Oficina Díaz")
+
+    # el admin reasigna la comparativa a sí mismo (sin teléfono): usa el de la oficina
+    client.post("/logout")
+    login(client)
+    r = client.post(f"/cotizaciones/{comp_id}/actualizar", data={"title": "x", "status": "abierta", "advisor_id": 1}, follow_redirects=True)
+    assert "Comparativa actualizada" in r.text
+    r = anon.get(f"/c/{token}/elegir/{quote_id}", follow_redirects=False)
+    assert r.headers["location"].startswith("https://wa.me/584140000000?text=")
+    # admin edita el perfil de luis
+    import re as _re
+    r = client.get("/usuarios")
+    luis_id = int(_re.search(r'<code>luis</code></td>\s*<td><a href="/usuarios/(\d+)/editar"', r.text).group(1))
+    r = client.post(f"/usuarios/{luis_id}/editar", data={"full_name": "Luis A. Pérez", "phone": "0416-1112233", "email": "", "title": "", "role": "agente"}, follow_redirects=True)
+    assert "Usuario actualizado" in r.text and "Luis A. Pérez" in r.text

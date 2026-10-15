@@ -89,6 +89,11 @@ function copyShare() {
     <form method="post" action="/cotizaciones/{{ comp.id }}/actualizar" class="form">
       <label>Título <input name="title" value="{{ comp.title }}"></label>
       <label>Notas internas <textarea name="notes" rows="3">{{ comp.notes or '' }}</textarea></label>
+      <label>Asesor responsable (su nombre y WhatsApp van en la comparativa)
+        <select name="advisor_id">
+          {% for a in advisors %}<option value="{{ a.id }}" {% if a.id == comp.created_by %}selected{% endif %}>{{ a.full_name }}{% if not a.phone %} (sin WhatsApp){% endif %}</option>{% endfor %}
+        </select>
+      </label>
       <label>Estado
         <select name="status">
           <option value="abierta" {% if comp.status == 'abierta' %}selected{% endif %}>Abierta</option>
@@ -206,7 +211,7 @@ function copyShare() {
       {% endfor %}
     </ul>
     {% endif %}
-    {% if not office_wa %}<p class="flash flash-warn small">Para que el cliente pueda tocar "Quiero este plan" y escribirte por WhatsApp, pon tu teléfono en el menú <a href="/configuracion">Oficina</a>.</p>{% endif %}
+    {% if not office_wa %}<p class="flash flash-warn small">Para que el cliente pueda tocar "Quiero este plan", el asesor responsable debe tener su WhatsApp en <a href="/perfil">su perfil</a>, o la oficina en <a href="/configuracion">Oficina</a>.</p>{% endif %}
   </div>
 </div>
 

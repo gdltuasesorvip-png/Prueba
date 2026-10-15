@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
     full_name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'agente',
     active INTEGER NOT NULL DEFAULT 1,
+    phone TEXT,
+    email TEXT,
+    title TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -183,6 +186,10 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Actualiza bases de datos creadas con versiones anteriores de la app."""
+    ucols = _columns(conn, "users")
+    for col in ("phone", "email", "title"):
+        if col not in ucols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
     ccols = _columns(conn, "comparisons")
     if "share_token" not in ccols:
         conn.execute("ALTER TABLE comparisons ADD COLUMN share_token TEXT")

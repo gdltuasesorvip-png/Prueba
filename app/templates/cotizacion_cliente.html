@@ -12,6 +12,10 @@
     .client-head h1 { margin: 0 0 4px; font-size: 1.5rem; }
     .client-head .sub { opacity: .9; }
     .client-head .office { text-align: right; font-size: .9rem; opacity: .95; }
+    .advisor { display: flex; gap: 10px; align-items: center; text-align: left; background: rgba(255,255,255,.14); border-radius: 10px; padding: 8px 12px; }
+    .advisor-avatar { width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--primary); font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .muted-light { opacity: .8; font-size: .78rem; text-transform: uppercase; letter-spacing: .3px; }
+    .office-name { margin-top: 8px; font-size: .85rem; opacity: .9; }
     .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 20px; }
     .pcard { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; display: flex; flex-direction: column; gap: 4px; }
@@ -97,10 +101,18 @@
       {% if office_wa %}<a class="btn btn-head" href="{% if public %}/c/{{ token }}/pregunta{% else %}#{% endif %}">Tengo una pregunta</a>{% endif %}
     </div>
     <div class="office">
-      {% if settings.oficina_nombre %}<div><strong>{{ settings.oficina_nombre }}</strong></div>{% endif %}
-      {% if settings.oficina_telefono %}<div>{{ settings.oficina_telefono }}</div>{% endif %}
-      {% if settings.oficina_correo %}<div>{{ settings.oficina_correo }}</div>{% endif %}
-      {% if not settings.oficina_nombre and comp.created_by_name %}<div>Asesor: {{ comp.created_by_name }}</div>{% endif %}
+      {% if comp.created_by_name %}
+      <div class="advisor">
+        <div class="advisor-avatar">{{ comp.created_by_name[:1] }}</div>
+        <div>
+          <div class="muted-light">Tu asesor{{ 'a' if comp.created_by_name.strip().endswith('a') else '' }}</div>
+          <div><strong>{{ comp.created_by_name }}</strong></div>
+          {% if comp.advisor_title %}<div>{{ comp.advisor_title }}</div>{% endif %}
+          {% if comp.advisor_phone %}<div>{{ comp.advisor_phone }}</div>{% elif settings.oficina_telefono %}<div>{{ settings.oficina_telefono }}</div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if settings.oficina_nombre %}<div class="office-name">{{ settings.oficina_nombre }}</div>{% endif %}
     </div>
   </div>
 
@@ -110,7 +122,7 @@
   {% if comp.recommended %}
   {% set r = comp.recommended %}
   <section class="reco">
-    <div class="reco-tag">★ Recomendado por tu asesor{% if comp.created_by_name and not settings.oficina_nombre %} · {{ comp.created_by_name }}{% endif %}</div>
+    <div class="reco-tag">★ Recomendado por {{ comp.created_by_name or 'tu asesor' }}</div>
     <div class="reco-body">
       <div class="reco-plan">
         <div class="reco-company" style="color: {{ COMPANY_COLORS.get(r.company, COMPANY_COLORS['otra']) }}">{{ r.company_label }}</div>
@@ -188,8 +200,9 @@
   {% endif %}
 
   <div class="client-footer">
+    {% if comp.created_by_name %}<p><strong>{{ comp.created_by_name }}</strong>{% if comp.advisor_title %} · {{ comp.advisor_title }}{% endif %}{% if comp.advisor_phone %} · {{ comp.advisor_phone }}{% endif %}{% if comp.advisor_email %} · {{ comp.advisor_email }}{% endif %}</p>{% endif %}
     {% if settings.oficina_nombre or settings.oficina_telefono or settings.oficina_correo %}
-    <p><strong>{{ settings.oficina_nombre }}</strong>{% if settings.oficina_telefono %} · {{ settings.oficina_telefono }}{% endif %}{% if settings.oficina_correo %} · {{ settings.oficina_correo }}{% endif %}</p>
+    <p>{{ settings.oficina_nombre }}{% if settings.oficina_telefono %} · {{ settings.oficina_telefono }}{% endif %}{% if settings.oficina_correo %} · {{ settings.oficina_correo }}{% endif %}</p>
     {% endif %}
     <p>{{ settings.oficina_pie or 'Las primas y coberturas provienen de las cotizaciones emitidas por cada aseguradora y están sujetas a sus condiciones generales y particulares.' }}</p>
   </div>

@@ -21,7 +21,7 @@
     <a href="/configuracion" {% if request.url.path.startswith('/configuracion') %}class="active"{% endif %}>Oficina</a>{% endif %}
   </nav>
   <div class="userbox">
-    <a href="/perfil/clave" title="Cambiar mi clave">{{ user.full_name }} <small>({{ ROLES[user.role] }})</small></a>
+    <a href="/perfil" title="Mi perfil">{{ user.full_name }} <small>({{ ROLES[user.role] }})</small></a>
     <form method="post" action="/logout"><button class="btn btn-ghost btn-sm">Salir</button></form>
   </div>
   {% endif %}

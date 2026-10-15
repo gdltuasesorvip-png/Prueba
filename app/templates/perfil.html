@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Mi perfil{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Mi perfil</h1>
+  <p class="muted">Estos datos aparecen en las comparativas que envías: el cliente ve tu nombre y sus botones de WhatsApp llegan a tu número.</p>
+  <form method="post" action="/perfil" class="form">
+    <label>Nombre completo <input name="full_name" value="{{ user.full_name }}" required></label>
+    <label>Cargo (opcional) <input name="title" value="{{ user.title or '' }}" placeholder="Asesora de seguros"></label>
+    <label>WhatsApp <input name="phone" value="{{ user.phone or '' }}" placeholder="0412-1234567"></label>
+    <label>Correo (opcional) <input name="email" value="{{ user.email or '' }}"></label>
+    <div class="actions">
+      <button class="btn btn-primary">Guardar</button>
+      <a class="btn btn-ghost" href="/perfil/clave">Cambiar mi clave</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -56,8 +56,12 @@ def build_pdf(comp: dict[str, Any], settings: dict[str, str]) -> bytes:
     who = f"Preparada para {comp['client_name']}"
     if comp.get("client_document"):
         who += f" · {comp['client_document']}"
+    if comp.get("created_by_name"):
+        who += f" · Asesor: {comp['created_by_name']}"
+        if comp.get("advisor_phone"):
+            who += f" ({comp['advisor_phone']})"
     if settings.get("oficina_nombre"):
-        who += f" · por {settings['oficina_nombre']}"
+        who += f" · {settings['oficina_nombre']}"
     pdf.cell(width, 6, who, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_draw_color(*PRIMARY)
     pdf.set_line_width(0.6)
@@ -84,7 +88,7 @@ def build_pdf(comp: dict[str, Any], settings: dict[str, str]) -> bytes:
         pdf.set_xy(pdf.l_margin + 5, y + 2)
         pdf.set_font("DejaVu", "B", 8)
         pdf.set_text_color(138, 90, 0)
-        pdf.cell(width - 10, 5, "★ RECOMENDADO POR TU ASESOR", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(width - 10, 5, f"★ RECOMENDADO POR {(comp.get('created_by_name') or 'TU ASESOR').upper()}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_x(pdf.l_margin + 5)
         pdf.set_font("DejaVu", "B", 11)
         pdf.set_text_color(*TEXT)
@@ -163,7 +167,8 @@ def build_pdf(comp: dict[str, Any], settings: dict[str, str]) -> bytes:
     pdf.set_font("DejaVu", "", 7.5)
     pdf.set_text_color(*MUTED)
     contact = " · ".join(
-        v for v in (settings.get("oficina_nombre"), settings.get("oficina_telefono"), settings.get("oficina_correo")) if v
+        v for v in (comp.get("created_by_name"), comp.get("advisor_phone"), comp.get("advisor_email"),
+                    settings.get("oficina_nombre"), settings.get("oficina_telefono"), settings.get("oficina_correo")) if v
     )
     if contact:
         pdf.multi_cell(width, 4, contact, new_x=XPos.LMARGIN, new_y=YPos.NEXT)

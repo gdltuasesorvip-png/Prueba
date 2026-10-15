@@ -7,12 +7,13 @@
 </div>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Restablecer clave</th><th></th></tr></thead>
+    <thead><tr><th>Usuario</th><th>Nombre</th><th>WhatsApp</th><th>Rol</th><th>Estado</th><th>Restablecer clave</th><th></th></tr></thead>
     <tbody>
     {% for u in usuarios %}
       <tr>
         <td><code>{{ u.username }}</code></td>
-        <td>{{ u.full_name }}</td>
+        <td><a href="/usuarios/{{ u.id }}/editar">{{ u.full_name }}</a></td>
+        <td>{{ u.phone or '—' }}</td>
         <td>{{ ROLES[u.role] }}</td>
         <td><span class="pill pill-{{ 'ok' if u.active else 'error' }}">{{ 'Activo' if u.active else 'Inactivo' }}</span></td>
         <td>
@@ -21,7 +22,8 @@
             <button class="btn btn-sm">Cambiar</button>
           </form>
         </td>
-        <td>
+        <td class="row-actions">
+          <a class="btn btn-sm" href="/usuarios/{{ u.id }}/editar">Editar</a>
           {% if u.id != user.id %}
           <form method="post" action="/usuarios/{{ u.id }}/estado">
             <input type="hidden" name="active" value="{{ 0 if u.active else 1 }}">

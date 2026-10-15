@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Editar usuario{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Editar a {{ target.full_name }}</h1>
+  <p class="muted">Usuario: <code>{{ target.username }}</code></p>
+  <form method="post" class="form">
+    <label>Nombre completo <input name="full_name" value="{{ target.full_name }}" required></label>
+    <label>Cargo <input name="title" value="{{ target.title or '' }}" placeholder="Asesor de seguros"></label>
+    <label>WhatsApp <input name="phone" value="{{ target.phone or '' }}" placeholder="0412-1234567"></label>
+    <label>Correo <input name="email" value="{{ target.email or '' }}"></label>
+    <label>Rol
+      <select name="role" {% if target.id == user.id %}disabled{% endif %}>
+        <option value="agente" {% if target.role == 'agente' %}selected{% endif %}>Agente</option>
+        <option value="admin" {% if target.role == 'admin' %}selected{% endif %}>Administrador</option>
+      </select>
+    </label>
+    <div class="actions">
+      <button class="btn btn-primary">Guardar</button>
+      <a class="btn btn-ghost" href="/usuarios">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

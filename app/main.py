@@ -133,9 +133,10 @@ def client_view_context(request: Request, comp: dict[str, Any]) -> dict[str, Any
     phone = wa_number(comp.get("client_phone"))
     text = whatsapp_summary(comp, share_url, settings)
     wa = f"https://wa.me/{phone}?text={quote(text)}" if phone else f"https://wa.me/?text={quote(text)}"
+    advisor_wa = wa_number(comp.get("advisor_phone")) or wa_number(settings.get("oficina_telefono"))
     return {
         "settings": settings, "share_url": share_url, "whatsapp_url": wa, "share_text": text,
-        "office_wa": wa_number(settings.get("oficina_telefono")), "token": token,
+        "office_wa": advisor_wa, "token": token,
     }
 
 
@@ -149,7 +150,8 @@ def load_comparison(comparison_id: int) -> dict[str, Any]:
     with db.get_conn() as conn:
         row = conn.execute(
             "SELECT c.*, cl.name AS client_name, cl.document_id AS client_document, "
-            "cl.phone AS client_phone, cl.email AS client_email, u.full_name AS created_by_name "
+            "cl.phone AS client_phone, cl.email AS client_email, u.full_name AS created_by_name, "
+            "u.phone AS advisor_phone, u.email AS advisor_email, u.title AS advisor_title "
             "FROM comparisons c JOIN clients cl ON cl.id = c.client_id "
             "LEFT JOIN users u ON u.id = c.created_by WHERE c.id = ?",
             (comparison_id,),
@@ -272,8 +274,9 @@ def whatsapp_summary(comp: dict[str, Any], share_url: str, settings: dict[str, s
             lines.append(f"• {q.get('plan') or 'Plan'} → {precio}")
         lines.append("")
     lines.append(f"Comparativa completa con coberturas: {share_url}")
-    if settings.get("oficina_nombre"):
-        lines.append(settings["oficina_nombre"])
+    firma = " · ".join(v for v in (comp.get("created_by_name"), settings.get("oficina_nombre")) if v)
+    if firma:
+        lines.append(firma)
     return "\n".join(lines).strip()
 
 
@@ -593,7 +596,9 @@ def cotizacion_nueva(
 @app.get("/cotizaciones/{comparison_id}", response_class=HTMLResponse)
 def cotizacion_detalle(request: Request, comparison_id: int, user: dict = Depends(auth.require_user)):
     comp = load_comparison(comparison_id)
-    return render(request, "cotizacion_detalle.html", user=user, comp=comp, **client_view_context(request, comp))
+    with db.get_conn() as conn:
+        advisors = db.rows_to_list(conn.execute("SELECT id, full_name, phone FROM users WHERE active=1 ORDER BY full_name").fetchall())
+    return render(request, "cotizacion_detalle.html", user=user, comp=comp, advisors=advisors, **client_view_context(request, comp))
 
 
 @app.get("/cotizaciones/{comparison_id}/imprimir", response_class=HTMLResponse)
@@ -648,11 +653,12 @@ def comparativa_elegir(request: Request, token: str, quote_id: int):
         raise HTTPException(404, "Plan no encontrado")
     log_event(comp_id, "choose", quote_id=quote_id)
     settings = db.get_settings()
+    target = wa_number(comp.get("advisor_phone")) or wa_number(settings.get("oficina_telefono"))
     text = (
         f"Hola, soy {comp['client_name']}. Me interesa el plan *{q.get('plan') or 'Plan'}* de *{q['company_label']}* "
         f"({fmt_money(q['prima_anual'], q['moneda'])} al año) de la comparativa de {comp['ramo_label'].lower()}. ¿Cómo seguimos?"
     )
-    return RedirectResponse(f"https://wa.me/{wa_number(settings.get('oficina_telefono'))}?text={quote(text)}", status_code=303)
+    return RedirectResponse(f"https://wa.me/{target}?text={quote(text)}", status_code=303)
 
 
 @app.get("/c/{token}/pregunta")
@@ -661,8 +667,9 @@ def comparativa_pregunta(request: Request, token: str):
     comp = load_comparison(comp_id)
     log_event(comp_id, "question", detail="Tengo una pregunta")
     settings = db.get_settings()
+    target = wa_number(comp.get("advisor_phone")) or wa_number(settings.get("oficina_telefono"))
     text = f"Hola, soy {comp['client_name']}. Tengo una pregunta sobre la comparativa de {comp['ramo_label'].lower()} que me enviaste."
-    return RedirectResponse(f"https://wa.me/{wa_number(settings.get('oficina_telefono'))}?text={quote(text)}", status_code=303)
+    return RedirectResponse(f"https://wa.me/{target}?text={quote(text)}", status_code=303)
 
 
 @app.get("/c/{token}/pdf")
@@ -1023,15 +1030,19 @@ def cotizacion_actualizar(
     title: str = Form(""),
     notes: str = Form(""),
     status: str = Form("abierta"),
+    advisor_id: int = Form(0),
     user: dict = Depends(auth.require_user),
 ):
     comp = load_comparison(comparison_id)
     if status not in ("abierta", "cerrada"):
         status = "abierta"
     with db.get_conn() as conn:
+        advisor = advisor_id or comp["created_by"]
+        if advisor_id and conn.execute("SELECT 1 FROM users WHERE id=? AND active=1", (advisor_id,)).fetchone() is None:
+            raise HTTPException(400, "Asesor inválido")
         conn.execute(
-            "UPDATE comparisons SET title=?, notes=?, status=?, updated_at=? WHERE id=?",
-            (title.strip() or comp["title"], notes.strip(), status, db.now_iso(), comparison_id),
+            "UPDATE comparisons SET title=?, notes=?, status=?, created_by=?, updated_at=? WHERE id=?",
+            (title.strip() or comp["title"], notes.strip(), status, advisor, db.now_iso(), comparison_id),
         )
     return redirect(f"/cotizaciones/{comparison_id}", "Comparativa actualizada")
 
@@ -1055,7 +1066,7 @@ def cotizacion_eliminar(comparison_id: int, user: dict = Depends(auth.require_ad
 def usuarios(request: Request, user: dict = Depends(auth.require_admin)):
     with db.get_conn() as conn:
         rows = db.rows_to_list(
-            conn.execute("SELECT id, username, full_name, role, active, created_at FROM users ORDER BY username").fetchall()
+            conn.execute("SELECT id, username, full_name, role, active, phone, created_at FROM users ORDER BY username").fetchall()
         )
     return render(request, "usuarios.html", user=user, usuarios=rows)
 
@@ -1072,10 +1083,14 @@ def usuario_nuevo(
     full_name: str = Form(...),
     password: str = Form(...),
     role: str = Form("agente"),
+    phone: str = Form(""),
     user: dict = Depends(auth.require_admin),
 ):
     try:
-        auth.create_user(username, password, full_name, role)
+        new_id = auth.create_user(username, password, full_name, role)
+        if phone.strip():
+            with db.get_conn() as conn:
+                conn.execute("UPDATE users SET phone=? WHERE id=?", (phone.strip(), new_id))
     except ValueError as exc:
         return render(request, "usuario_form.html", user=user, error=str(exc), form=locals())
     except Exception:  # noqa: BLE001 - username duplicado
@@ -1111,6 +1126,60 @@ async def configuracion_guardar(request: Request, user: dict = Depends(auth.requ
     form = await request.form()
     db.save_settings({k: str(form.get(k, "")) for k in db.SETTING_KEYS})
     return redirect("/configuracion", "Configuración guardada")
+
+
+@app.get("/perfil", response_class=HTMLResponse)
+def perfil_form(request: Request, user: dict = Depends(auth.require_user)):
+    return render(request, "perfil.html", user=user)
+
+
+@app.post("/perfil")
+def perfil_guardar(
+    full_name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    title: str = Form(""),
+    user: dict = Depends(auth.require_user),
+):
+    if not full_name.strip():
+        return redirect("/perfil", "El nombre es obligatorio", "error")
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET full_name=?, phone=?, email=?, title=? WHERE id=?",
+            (full_name.strip(), phone.strip(), email.strip(), title.strip(), user["id"]),
+        )
+    return redirect("/perfil", "Perfil guardado. Tus comparativas ya muestran estos datos.")
+
+
+@app.get("/usuarios/{user_id}/editar", response_class=HTMLResponse)
+def usuario_editar_form(request: Request, user_id: int, user: dict = Depends(auth.require_admin)):
+    with db.get_conn() as conn:
+        target = db.row_to_dict(conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone())
+    if target is None:
+        raise HTTPException(404, "Usuario no encontrado")
+    return render(request, "usuario_editar.html", user=user, target=target)
+
+
+@app.post("/usuarios/{user_id}/editar")
+def usuario_editar(
+    user_id: int,
+    full_name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    title: str = Form(""),
+    role: str = Form("agente"),
+    user: dict = Depends(auth.require_admin),
+):
+    if role not in config.ROLES:
+        raise HTTPException(400, "Rol inválido")
+    if user_id == user["id"]:
+        role = "admin"
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET full_name=?, phone=?, email=?, title=?, role=? WHERE id=?",
+            (full_name.strip() or "Sin nombre", phone.strip(), email.strip(), title.strip(), role, user_id),
+        )
+    return redirect("/usuarios", "Usuario actualizado")
 
 
 @app.get("/perfil/clave", response_class=HTMLResponse)
