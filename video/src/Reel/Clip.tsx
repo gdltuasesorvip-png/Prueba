@@ -48,9 +48,14 @@ export const Clip: React.FC<{
     fps,
     config: { damping: 9, stiffness: 260, mass: 0.7 },
   });
+  // El rótulo se queda hasta que el dato destacado haya estado visible al menos 2,5 s.
+  const captionEnd = Math.min(
+    Math.max(CAPTION_IN + CAPTION_VISIBLE, detailAt + 75),
+    durationInFrames - 20,
+  );
   const captionOut = interpolate(
     frame,
-    [CAPTION_IN + CAPTION_VISIBLE, CAPTION_IN + CAPTION_VISIBLE + 15],
+    [captionEnd, captionEnd + 15],
     [1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
   );

@@ -22,7 +22,16 @@ for (const [name, from] of Object.entries(FROM)) {
       const start = +(w.s - from).toFixed(2);
       const end = +(w.e - from).toFixed(2);
       if (end <= 0) continue;
-      words.push({ w: w.w, s: Math.max(0, start), e: end });
+      let text = w.w;
+      const prev = words[words.length - 1];
+      // Whisper a veces parte las cifras en dos tokens ("$11" + ",000"): se vuelven a unir.
+      if (prev && /^[.,]\d{3}/.test(text) && /\d$/.test(prev.w)) {
+        prev.w = (prev.w + text).replace(/,(\d{3})/g, ".$1");
+        prev.e = end;
+        continue;
+      }
+      text = text.replace(/(\d),(\d{3})/g, "$1.$2");
+      words.push({ w: text, s: Math.max(0, start), e: end });
     }
   }
   out[name] = words;

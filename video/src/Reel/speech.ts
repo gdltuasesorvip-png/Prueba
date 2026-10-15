@@ -26,7 +26,7 @@ export const chunkWords = (words: Word[], maxWords = 3, maxGap = 0.7): Chunk[] =
 };
 
 const NUMBER_WORDS = new Set([
-  "mil", "cien", "ciento", "cientos", "un", "uno", "una", "dos", "tres", "cuatro", "cinco",
+  "mil", "cien", "ciento", "cientos", "dos", "tres", "cuatro", "cinco",
   "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince",
   "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa",
   "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos",
@@ -47,7 +47,7 @@ export const findAmounts = (words: Word[]): AmountEvent[] => {
   const flush = () => {
     const core = run.filter((w) => {
       const c = clean(w.w);
-      return !["y", "un", "una", "dólares", "dolares"].includes(c);
+      return !["y", "dólares", "dolares"].includes(c);
     });
     if (core.length) {
       const digits = run.find((w) => /\d/.test(w.w));
@@ -62,7 +62,7 @@ export const findAmounts = (words: Word[]): AmountEvent[] => {
     if (isNumeric(w.w)) {
       const c = clean(w.w);
       // "y" y "un" solo cuentan dentro de una cifra, no al inicio.
-      if (run.length === 0 && ["y", "un", "una"].includes(c)) return;
+      if (run.length === 0 && ["y", "dólares", "dolares"].includes(c)) return;
       run.push(w);
     } else flush();
   });

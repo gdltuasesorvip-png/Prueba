@@ -127,7 +127,7 @@ export const Subtitles: React.FC<{ words: Word[]; accent: string }> = ({
                 position: "absolute",
                 left: 0,
                 right: 0,
-                top: "33%",
+                top: "45%",
                 display: "flex",
                 justifyContent: "center",
                 opacity: out,
