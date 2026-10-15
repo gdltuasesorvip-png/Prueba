@@ -86,7 +86,24 @@ export const EMOJI_RULES: { re: RegExp; emoji: string }[] = [
   { re: /mes|mensual|anual|año/, emoji: "📅" },
   { re: /dólar|dolar|plata|dinero|pagar|cuesta|costo|gasto|cuenta/, emoji: "💸" },
   { re: /perfecto|tranquil|feliz/, emoji: "✨" },
+  { re: /maternidad/, emoji: "🤰" },
+  { re: /honrón|honron|jonrón|jonron/, emoji: "💥" },
+  { re: /plazo|espera/, emoji: "⏳" },
+  { re: /tarde|ojo/, emoji: "🚨" },
+  { re: /familia/, emoji: "👨‍👩‍👧" },
+  { re: /comenta|escríbeme|escribeme/, emoji: "💬" },
+  { re: /sígueme|sigueme/, emoji: "➕" },
+  { re: /venezuela|criollo/, emoji: "🇻🇪" },
+  { re: /veces|invertiste/, emoji: "8️⃣" },
+  { re: /dispara/, emoji: "🚀" },
+  { re: /trato/, emoji: "🤝" },
 ];
+
+/** Palabras de énfasis: reciben golpe de sonido y sacudida en el estilo creativo. */
+export const EMPHASIS = /^(no|dispara|emergencia|complicaci\w*|tarde|ojo|ahora|nunca|jamás|jamas)$/;
+
+/** Palabras que celebran: reciben sonido de caja registradora o brillo. */
+export const WIN = /^(ahorr\w*|cubre|gratis|conviene|honrón|honron|jonrón|jonron|trato)$/;
 
 export type EmojiEvent = { start: number; emoji: string };
 
