@@ -88,6 +88,19 @@ app/
 tests/            pruebas automáticas
 ```
 
+## Plugin OmniRoute para Claude Code
+
+El repositorio incluye el plugin **omniroute** (carpeta `plugins/omniroute/`), que conecta Claude Code con un
+gateway [OmniRoute](https://github.com/diegosouzapw/OmniRoute) local por MCP. Al abrir este proyecto con
+Claude Code el plugin se habilita solo gracias a `.claude/settings.json`. En otro proyecto se instala con:
+
+```
+/plugin install omniroute --marketplace gdltuasesorvip-png/Prueba
+```
+
+Requiere tener OmniRoute corriendo en el puerto 20128 (`npm install -g omniroute` y luego `omniroute`).
+Más detalles en `plugins/omniroute/README.md`.
+
 ## Publicarla para el equipo
 
 Cualquier servidor con Docker sirve (un VPS pequeño, Railway, Render, Fly.io). Pon la app detrás de HTTPS

@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "prueba": {
+      "source": {
+        "source": "github",
+        "repo": "gdltuasesorvip-png/Prueba"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "omniroute@prueba": true
+  }
+}

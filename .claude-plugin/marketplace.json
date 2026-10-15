@@ -1,0 +1,13 @@
+{
+  "name": "prueba",
+  "description": "Plugins de Claude Code para el cotizador comparativo de seguros",
+  "owner": { "name": "gdltuasesorvip-png" },
+  "plugins": [
+    {
+      "name": "omniroute",
+      "source": "./plugins/omniroute",
+      "description": "Conecta Claude Code con un gateway OmniRoute local por MCP (puerto 20128).",
+      "version": "1.0.0"
+    }
+  ]
+}
