@@ -84,16 +84,17 @@ export const Subtitles: React.FC<{ words: Word[]; accent: string }> = ({
         const local = frame - f0;
         if (local < 0 || local > 36) return null;
         const pop = spring({ frame: local, fps, config: { damping: 8, stiffness: 220 } });
-        const rise = interpolate(local, [0, 36], [0, -140]);
+        const rise = interpolate(local, [0, 36], [0, -110]);
         const fade = interpolate(local, [22, 36], [1, 0], { extrapolateLeft: "clamp" });
-        const x = 50 + ((Math.round(e.start * 7) % 5) - 2) * 9; // posición pseudoaleatoria
+        // Siempre en un lateral de la mitad inferior, alternando lado, para no tapar el rostro.
+        const x = Math.round(e.start * 7) % 2 === 0 ? 13 : 87;
         return (
           <div
             key={e.start}
             style={{
               position: "absolute",
               left: `${x}%`,
-              top: "49%",
+              top: "70%",
               fontSize: 120,
               transform: `translate(-50%, ${rise}px) scale(${pop}) rotate(${(1 - pop) * 20}deg)`,
               opacity: fade,

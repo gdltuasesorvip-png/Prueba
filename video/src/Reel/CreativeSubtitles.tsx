@@ -332,16 +332,17 @@ export const CreativeSubtitles: React.FC<{ words: Word[]; accent: string }> = ({
         const local = frame - f0;
         if (local < 0 || local > 40) return null;
         const pop = spring({ frame: local, fps, config: { damping: 7, stiffness: 240 } });
-        const rise = interpolate(local, [0, 40], [0, -170]);
+        const rise = interpolate(local, [0, 40], [0, -120]);
         const fade = interpolate(local, [26, 40], [1, 0], { extrapolateLeft: "clamp" });
-        const x = 20 + rnd(e.start * 10) * 60;
+        // Siempre en un lateral de la mitad inferior, alternando lado, para no tapar el rostro.
+        const x = rnd(e.start * 10) < 0.5 ? 13 : 87;
         return (
           <div
             key={e.start}
             style={{
               position: "absolute",
               left: `${x}%`,
-              top: "40%",
+              top: "66%",
               fontSize: 140,
               transform: `translate(-50%, ${rise}px) scale(${pop}) rotate(${(1 - pop) * 30}deg)`,
               opacity: fade,
