@@ -67,6 +67,35 @@ CREATE TABLE IF NOT EXISTS share_events (
 
 CREATE INDEX IF NOT EXISTS idx_share_events_comparison ON share_events(comparison_id);
 
+CREATE TABLE IF NOT EXISTS library_docs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company TEXT NOT NULL,
+    company_name TEXT,
+    ramo TEXT,
+    title TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    original_filename TEXT,
+    size_bytes INTEGER,
+    notes TEXT,
+    uploaded_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS library_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id INTEGER NOT NULL REFERENCES library_docs(id) ON DELETE CASCADE,
+    question TEXT NOT NULL,
+    answer TEXT,
+    citations TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'procesando',
+    error TEXT,
+    asked_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_library_questions_doc ON library_questions(doc_id);
+
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     comparison_id INTEGER NOT NULL REFERENCES comparisons(id) ON DELETE CASCADE,

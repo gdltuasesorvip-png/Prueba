@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Biblioteca{% endblock %}
+{% block head %}{% if pending %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Biblioteca de condicionados</h1>
+    <p class="muted">Pregúntale a Claude qué cubre cada plan. Responde citando la página y el texto exacto del condicionado.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Hacer una pregunta</h2>
+    {% if docs %}
+    <form method="post" action="/biblioteca/preguntar" class="form">
+      <label>Condicionado
+        <select name="doc_id" required>
+          {% for d in docs %}<option value="{{ d.id }}" {% if doc_id == d.id %}selected{% endif %}>{{ d.company_label }} · {{ d.title }}{% if d.ramo_label %} ({{ d.ramo_label }}){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Pregunta <textarea name="question" rows="3" required placeholder="¿Cubre lentes y consulta oftalmológica? ¿Cuál es el período de espera para maternidad?"></textarea></label>
+      <button class="btn btn-primary">Preguntar a Claude</button>
+    </form>
+    {% else %}
+    <p class="muted">Todavía no hay condicionados. {% if user.role == 'admin' %}Sube el primero aquí al lado.{% else %}Pide al administrador que los suba.{% endif %}</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Condicionados cargados</h2>
+    {% if docs %}
+    <table class="table">
+      <thead><tr><th>Compañía</th><th>Plan / documento</th><th>Preguntas</th><th></th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr>
+          <td><span class="dot-co" style="background: {{ COMPANY_COLORS.get(d.company, COMPANY_COLORS['otra']) }}"></span> {{ d.company_label }}</td>
+          <td><a href="/biblioteca?doc={{ d.id }}">{{ d.title }}</a>{% if d.ramo_label %} <span class="tag tag-{{ d.ramo }}">{{ d.ramo_label }}</span>{% endif %}<br><small class="muted">{{ d.original_filename }} · {{ (d.size_bytes / 1048576) | round(1) }} MB</small></td>
+          <td>{{ d.n_questions }}</td>
+          <td class="row-actions">
+            <a class="btn btn-sm" href="/biblioteca/{{ d.id }}/pdf" target="_blank">PDF</a>
+            {% if user.role == 'admin' %}<form method="post" action="/biblioteca/{{ d.id }}/eliminar"><button class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este condicionado y sus preguntas?')">Eliminar</button></form>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">Ninguno todavía.</p>{% endif %}
+    {% if user.role == 'admin' %}
+    <details class="mt" {% if not docs %}open{% endif %}>
+      <summary>Subir un condicionado (PDF)</summary>
+      <form method="post" action="/biblioteca/subir" enctype="multipart/form-data" class="form mt">
+        <div class="grid-2">
+          <label>Compañía <select name="company">{% for k, v in COMPANIAS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+          <label>Ramo <select name="ramo"><option value="">—</option>{% for k, v in RAMOS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        </div>
+        <label>Nombre del plan o documento <input name="title" required placeholder="Salud Integral Oro - Condiciones generales 2026"></label>
+        <label>Nombre de la compañía (solo si elegiste "Otra") <input name="company_name"></label>
+        <label>Archivo PDF <input type="file" name="file" accept="application/pdf" required></label>
+        <label>Notas <input name="notes" placeholder="Opcional: vigencia, versión, observaciones"></label>
+        <button class="btn btn-primary">Subir</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="page-head">
+    <h2>Preguntas y respuestas{% if doc_id %} <span class="muted small">de este condicionado · <a href="/biblioteca">ver todas</a></span>{% endif %}</h2>
+    <form method="get" action="/biblioteca" class="searchbar" style="margin:0">
+      {% if doc_id %}<input type="hidden" name="doc" value="{{ doc_id }}">{% endif %}
+      <input name="q" value="{{ q }}" placeholder="Buscar en preguntas anteriores">
+      <button class="btn">Buscar</button>
+    </form>
+  </div>
+  {% if pending %}<div class="flash flash-info">Claude está leyendo el condicionado… esta página se actualiza sola.</div>{% endif %}
+  {% if questions %}
+  <div class="qa-list">
+    {% for x in questions %}
+    <article class="qa" id="q{{ x.id }}">
+      <div class="qa-head">
+        <span class="dot-co" style="background: {{ COMPANY_COLORS.get(x.company, COMPANY_COLORS['otra']) }}"></span>
+        <strong>{{ x.company_label }} · {{ x.doc_title }}</strong>
+        <span class="muted small">{{ x.asked_by_name or '—' }} · {{ x.created_at | when }}</span>
+        {% if user.role == 'admin' %}<form method="post" action="/biblioteca/preguntas/{{ x.id }}/eliminar" class="inline-form"><button class="btn btn-sm btn-ghost" title="Eliminar">✕</button></form>{% endif %}
+      </div>
+      <div class="qa-q">{{ x.question }}</div>
+      {% if x.status == 'procesando' %}<div class="qa-a muted">Leyendo el condicionado…</div>
+      {% elif x.status == 'error' %}<div class="qa-a flash flash-error">{{ x.error }}</div>
+      {% else %}
+      <div class="qa-a">{{ x.answer }}</div>
+      {% if x.citations %}
+      <details class="qa-cites">
+        <summary>Texto citado del condicionado ({{ x.citations | length }})</summary>
+        <ul>{% for c in x.citations %}<li><span class="pill pill-manual">pág. {{ c.pages }}</span> “{{ c.text }}”</li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}<p class="muted">Aún no hay preguntas{% if q %} que coincidan con "{{ q }}"{% endif %}.</p>{% endif %}
+</div>
+{% endblock %}

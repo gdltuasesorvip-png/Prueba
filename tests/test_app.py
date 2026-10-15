@@ -568,3 +568,73 @@ def test_advisor_profile_routes_whatsapp(client):
     luis_id = int(_re.search(r'<code>luis</code></td>\s*<td><a href="/usuarios/(\d+)/editar"', r.text).group(1))
     r = client.post(f"/usuarios/{luis_id}/editar", data={"full_name": "Luis A. Pérez", "phone": "0416-1112233", "email": "", "title": "", "role": "agente"}, follow_redirects=True)
     assert "Usuario actualizado" in r.text and "Luis A. Pérez" in r.text
+
+
+def test_library_questions(client, monkeypatch):
+    login(client)
+    r = client.get("/biblioteca")
+    assert "Biblioteca de condicionados" in r.text
+    r = client.post(
+        "/biblioteca/subir",
+        data={"company": "oceanica", "ramo": "salud", "title": "Salud Integral Oro - Condiciones", "notes": ""},
+        files={"file": ("oro.pdf", io.BytesIO(b"%PDF-1.4 condicionado"), "application/pdf")},
+        follow_redirects=True,
+    )
+    assert "guardado" in r.text and "Salud Integral Oro" in r.text
+    doc_id = int(r.text.split('href="/biblioteca?doc=')[1].split('"')[0])
+
+    monkeypatch.setattr(extraction, "api_available", lambda: True)
+    calls = []
+    def fake_answer(pdf_path, title, question):
+        calls.append((title, question))
+        return ("Sí, cubre lentes hasta USD 150 al año [pág. 12].", [{"pages": "12", "text": "Lentes correctivos: hasta USD 150 por año póliza."}])
+    monkeypatch.setattr(extraction, "answer_from_document", fake_answer)
+
+    r = client.post("/biblioteca/preguntar", data={"doc_id": doc_id, "question": "¿Cubre lentes?"}, follow_redirects=True)
+    assert "cubre lentes hasta USD 150" in r.text and "pág. 12" in r.text
+    assert calls == [("Oceánica de Seguros · Salud Integral Oro - Condiciones", "¿Cubre lentes?")]
+    # misma pregunta: reutiliza la respuesta sin llamar a Claude
+    r = client.post("/biblioteca/preguntar", data={"doc_id": doc_id, "question": "¿cubre lentes?"}, follow_redirects=True)
+    assert "ya tiene respuesta" in r.text and len(calls) == 1
+    # búsqueda
+    r = client.get("/biblioteca?q=lentes")
+    assert "Cubre lentes" in r.text
+    r = client.get("/biblioteca?q=maternidad")
+    assert "Aún no hay preguntas" in r.text
+    # un agente puede preguntar pero no subir ni borrar
+    client.post("/usuarios/nuevo", data={"username": "rosa", "full_name": "Rosa", "password": "clave123", "role": "agente"})
+    client.post("/logout"); login(client, "rosa", "clave123")
+    r = client.post("/biblioteca/preguntar", data={"doc_id": doc_id, "question": "¿Período de espera de maternidad?"}, follow_redirects=True)
+    assert len(calls) == 2
+    r = client.post("/biblioteca/subir", data={"company": "hispana", "title": "x"}, files={"file": ("a.pdf", io.BytesIO(b"%PDF"), "application/pdf")})
+    assert r.status_code == 403
+    client.post("/logout")
+
+
+def test_answer_from_document_parses_citations(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from app import config
+
+    class FakeStream:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get_final_message(self):
+            cit = SimpleNamespace(type="page_location", start_page_number=12, end_page_number=13, cited_text="Lentes correctivos: hasta USD 150.")
+            return SimpleNamespace(stop_reason="end_turn", content=[
+                SimpleNamespace(type="text", text="Sí, cubre lentes hasta USD 150 al año", citations=[cit]),
+                SimpleNamespace(type="text", text=". Aplica período de espera.", citations=None),
+            ])
+    captured = {}
+    class FakeMessages:
+        def stream(self, **kw):
+            captured.update(kw); return FakeStream()
+    class FakeClient:
+        def __init__(self, **kw): self.beta = SimpleNamespace(messages=FakeMessages())
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(extraction.anthropic, "Anthropic", FakeClient)
+    pdf = tmp_path / "c.pdf"; pdf.write_bytes(b"%PDF-1.4 x")
+    answer, cites = extraction.answer_from_document(pdf, "Oro", "¿Cubre lentes?")
+    assert answer == "Sí, cubre lentes hasta USD 150 al año [pág. 12]. Aplica período de espera."
+    assert cites == [{"pages": "12", "text": "Lentes correctivos: hasta USD 150."}]
+    doc_block = captured["messages"][0]["content"][0]
+    assert doc_block["citations"] == {"enabled": True} and doc_block["cache_control"] == {"type": "ephemeral"}

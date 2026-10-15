@@ -1441,3 +1441,176 @@ def cotizar_guardar(
                  f"Preliminar según tarifario. Detalle: {detalle}", user["id"], ts, ts),
             )
     return redirect(f"/cotizaciones/{comp_id}", "Cotización preliminar guardada en la comparativa del cliente")
+
+
+
+# --------------------------------------------------------------------------- biblioteca de condicionados
+
+LIBRARY_DIR_NAME = "biblioteca"
+
+
+def _library_docs() -> list[dict[str, Any]]:
+    with db.get_conn() as conn:
+        rows = db.rows_to_list(
+            conn.execute(
+                "SELECT d.*, u.full_name AS uploaded_by_name, "
+                "(SELECT COUNT(*) FROM library_questions q WHERE q.doc_id=d.id AND q.status='ok') AS n_questions "
+                "FROM library_docs d LEFT JOIN users u ON u.id=d.uploaded_by ORDER BY d.company, d.title"
+            ).fetchall()
+        )
+    for d in rows:
+        d["company_label"] = company_label(d["company"], d["company_name"])
+        d["ramo_label"] = config.RAMOS.get(d["ramo"], d["ramo"] or "")
+    return rows
+
+
+def _library_questions(doc_id: int | None = None, search: str = "", limit: int = 50) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT q.*, d.title AS doc_title, d.company, d.company_name, u.full_name AS asked_by_name "
+        "FROM library_questions q JOIN library_docs d ON d.id=q.doc_id LEFT JOIN users u ON u.id=q.asked_by"
+    )
+    where, params = [], []
+    if doc_id:
+        where.append("q.doc_id=?")
+        params.append(doc_id)
+    if search.strip():
+        where.append("(q.question LIKE ? OR q.answer LIKE ?)")
+        params += [f"%{search.strip()}%", f"%{search.strip()}%"]
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY q.created_at DESC, q.id DESC LIMIT ?"
+    params.append(limit)
+    with db.get_conn() as conn:
+        rows = db.rows_to_list(conn.execute(sql, params).fetchall())
+    for q in rows:
+        q["company_label"] = company_label(q["company"], q["company_name"])
+        try:
+            q["citations"] = json.loads(q.get("citations") or "[]")
+        except json.JSONDecodeError:
+            q["citations"] = []
+    return rows
+
+
+@app.get("/biblioteca", response_class=HTMLResponse)
+def biblioteca(request: Request, q: str = "", doc: int | None = None, user: dict = Depends(auth.require_user)):
+    docs = _library_docs()
+    questions = _library_questions(doc_id=doc, search=q)
+    pending = any(x["status"] == "procesando" for x in questions)
+    return render(request, "biblioteca.html", user=user, docs=docs, questions=questions, q=q, doc_id=doc, pending=pending)
+
+
+@app.post("/biblioteca/subir")
+async def biblioteca_subir(
+    company: str = Form(...),
+    company_name: str = Form(""),
+    ramo: str = Form(""),
+    title: str = Form(...),
+    notes: str = Form(""),
+    file: UploadFile = File(...),
+    user: dict = Depends(auth.require_admin),
+):
+    if company not in config.COMPANIAS or not title.strip():
+        raise HTTPException(400, "Datos inválidos")
+    content = await file.read()
+    filename = file.filename or "condicionado.pdf"
+    if not filename.lower().endswith(".pdf") or not content.startswith(b"%PDF"):
+        return redirect("/biblioteca", "Solo se aceptan archivos PDF", "error")
+    if len(content) > config.MAX_UPLOAD_MB * 1024 * 1024:
+        return redirect("/biblioteca", f"El PDF supera {config.MAX_UPLOAD_MB} MB", "error")
+    dest_dir = config.DATA_DIR / LIBRARY_DIR_NAME
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{uuid.uuid4().hex}.pdf"
+    dest.write_bytes(content)
+    with db.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO library_docs (company, company_name, ramo, title, file_path, original_filename, size_bytes, notes, "
+            "uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (company, company_name.strip() or None, ramo if ramo in config.RAMOS else None, title.strip(), str(dest),
+             filename, len(content), notes.strip(), user["id"], db.now_iso()),
+        )
+    return redirect("/biblioteca", f"Condicionado «{title.strip()}» guardado. Ya pueden hacerle preguntas.")
+
+
+@app.get("/biblioteca/{doc_id}/pdf")
+def biblioteca_pdf(doc_id: int, user: dict = Depends(auth.require_user)):
+    with db.get_conn() as conn:
+        d = conn.execute("SELECT * FROM library_docs WHERE id=?", (doc_id,)).fetchone()
+    if d is None or not Path(d["file_path"]).exists():
+        raise HTTPException(404, "Documento no encontrado")
+    return FileResponse(d["file_path"], media_type="application/pdf",
+                        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(d['original_filename'] or 'condicionado.pdf')}"})
+
+
+@app.post("/biblioteca/{doc_id}/eliminar")
+def biblioteca_eliminar(doc_id: int, user: dict = Depends(auth.require_admin)):
+    with db.get_conn() as conn:
+        d = conn.execute("SELECT * FROM library_docs WHERE id=?", (doc_id,)).fetchone()
+        if d is None:
+            raise HTTPException(404, "Documento no encontrado")
+        conn.execute("DELETE FROM library_questions WHERE doc_id=?", (doc_id,))
+        conn.execute("DELETE FROM library_docs WHERE id=?", (doc_id,))
+    Path(d["file_path"]).unlink(missing_ok=True)
+    return redirect("/biblioteca", "Condicionado eliminado")
+
+
+@app.post("/biblioteca/preguntar")
+def biblioteca_preguntar(
+    background: BackgroundTasks, doc_id: int = Form(...), question: str = Form(...), user: dict = Depends(auth.require_user)
+):
+    question = question.strip()
+    if len(question) < 5:
+        return redirect("/biblioteca", "Escribe la pregunta completa", "error")
+    with db.get_conn() as conn:
+        d = conn.execute("SELECT id FROM library_docs WHERE id=?", (doc_id,)).fetchone()
+        if d is None:
+            raise HTTPException(400, "Elige un condicionado")
+        # Si ya hay una respuesta a la misma pregunta sobre este documento, se reutiliza
+        prev = conn.execute(
+            "SELECT id FROM library_questions WHERE doc_id=? AND status='ok' AND LOWER(question)=LOWER(?) ORDER BY id DESC LIMIT 1",
+            (doc_id, question),
+        ).fetchone()
+        if prev:
+            return redirect(f"/biblioteca?doc={doc_id}#q{prev['id']}", "Esa pregunta ya tiene respuesta")
+        if not extraction.api_available():
+            return redirect("/biblioteca", "No hay clave de API configurada", "error")
+        ts = db.now_iso()
+        cur = conn.execute(
+            "INSERT INTO library_questions (doc_id, question, status, asked_by, created_at, updated_at) "
+            "VALUES (?, ?, 'procesando', ?, ?, ?)",
+            (doc_id, question, user["id"], ts, ts),
+        )
+    background.add_task(run_library_question, int(cur.lastrowid))
+    return redirect(f"/biblioteca?doc={doc_id}", "Claude está leyendo el condicionado…")
+
+
+def run_library_question(question_id: int) -> None:
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT q.*, d.file_path, d.title, d.company, d.company_name FROM library_questions q "
+            "JOIN library_docs d ON d.id=q.doc_id WHERE q.id=?",
+            (question_id,),
+        ).fetchone()
+    if row is None:
+        return
+    title = f"{company_label(row['company'], row['company_name'])} · {row['title']}"
+    try:
+        answer, citations = extraction.answer_from_document(Path(row["file_path"]), title, row["question"])
+    except Exception as exc:  # noqa: BLE001
+        with db.get_conn() as conn:
+            conn.execute(
+                "UPDATE library_questions SET status='error', error=?, updated_at=? WHERE id=?",
+                (str(exc), db.now_iso(), question_id),
+            )
+        return
+    with db.get_conn() as conn:
+        conn.execute(
+            "UPDATE library_questions SET answer=?, citations=?, status='ok', error=NULL, updated_at=? WHERE id=?",
+            (answer, json.dumps(citations, ensure_ascii=False), db.now_iso(), question_id),
+        )
+
+
+@app.post("/biblioteca/preguntas/{question_id}/eliminar")
+def biblioteca_pregunta_eliminar(question_id: int, user: dict = Depends(auth.require_admin)):
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM library_questions WHERE id=?", (question_id,))
+    return redirect("/biblioteca", "Pregunta eliminada")

@@ -271,3 +271,77 @@ def generate_recommendation(client_name: str, ramo_label: str, chosen: dict, oth
     if not text:
         raise ExtractionError("Claude devolvió una respuesta vacía.")
     return text
+
+
+LIBRARY_PROMPT = """Eres un asistente para corredores de seguros en Venezuela. Te entregan el condicionado (condiciones
+generales y particulares) de un plan de seguro y una pregunta de un asesor.
+
+Responde en español, de forma clara y breve, usando ÚNICAMENTE lo que dice el documento:
+- Empieza con la respuesta directa (sí, no, depende, o el dato concreto).
+- Cita siempre la cláusula o sección que la respalda y copia textualmente la parte relevante entre comillas.
+- Si el documento no trata el tema, di claramente "El condicionado no lo menciona" y no inventes.
+- Si hay condiciones, límites, períodos de espera o exclusiones relacionadas, menciónalas.
+- Termina con una línea: "Confirma con la aseguradora antes de prometerlo al cliente" solo cuando haya ambigüedad.
+Máximo 200 palabras."""
+
+
+def answer_from_document(pdf_path: Path, doc_title: str, question: str) -> tuple[str, list[dict]]:
+    """Responde una pregunta usando el PDF del condicionado, con citas de página."""
+    client = _client()
+    pdf_b64 = base64.standard_b64encode(pdf_path.read_bytes()).decode("ascii")
+    try:
+        with client.beta.messages.stream(
+            model=config.CLAUDE_MODEL,
+            max_tokens=4000,
+            betas=BETAS,
+            fallbacks="default",
+            system=LIBRARY_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64},
+                            "title": doc_title,
+                            "citations": {"enabled": True},
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                        {"type": "text", "text": f"Pregunta del asesor: {question}"},
+                    ],
+                }
+            ],
+        ) as stream:
+            response = stream.get_final_message()
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
+        raise _handle_api_errors(exc) from exc
+    if response.stop_reason == "refusal":
+        raise ExtractionError("Claude no pudo responder esta pregunta.")
+
+    parts: list[str] = []
+    citations: list[dict] = []
+    for block in response.content:
+        if getattr(block, "type", None) != "text":
+            continue
+        parts.append(block.text)
+        for cit in getattr(block, "citations", None) or []:
+            start = getattr(cit, "start_page_number", None)
+            end = getattr(cit, "end_page_number", None)
+            if start is None:
+                continue
+            last = end - 1 if end and end - 1 > start else start
+            pages = f"{start}" if last == start else f"{start}-{last}"
+            if pages not in [c["pages"] for c in citations]:
+                parts.append(f" [pág. {pages}]")
+            citations.append({"pages": pages, "text": (getattr(cit, "cited_text", "") or "").strip()[:400]})
+    answer = "".join(parts).strip()
+    if not answer:
+        raise ExtractionError("Claude devolvió una respuesta vacía.")
+    # quitar citas duplicadas conservando el orden
+    seen, unique = set(), []
+    for c in citations:
+        key = (c["pages"], c["text"][:80])
+        if key not in seen and c["text"]:
+            seen.add(key)
+            unique.append(c)
+    return answer, unique[:8]
