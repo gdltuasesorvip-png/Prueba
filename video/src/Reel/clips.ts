@@ -17,7 +17,7 @@ export type ClipSpec = {
 
 export const CLIPS: ClipSpec[] = [
   {
-    src: "clips/00-intro.mp4",
+    src: "clips/enhanced/00-intro.mp4",
     from: 0.9,
     to: 15.27,
     gain: 1,
@@ -27,7 +27,7 @@ export const CLIPS: ClipSpec[] = [
     sfx: "ding",
   },
   {
-    src: "clips/01-consultas.mp4",
+    src: "clips/enhanced/01-consultas.mp4",
     from: 1.0,
     to: 24.5,
     gain: 1,
@@ -37,7 +37,7 @@ export const CLIPS: ClipSpec[] = [
     sfx: "ding",
   },
   {
-    src: "clips/02-adn-fetal.mp4",
+    src: "clips/enhanced/02-adn-fetal.mp4",
     from: 0,
     to: 13.0,
     gain: 1,
@@ -47,7 +47,7 @@ export const CLIPS: ClipSpec[] = [
     sfx: "ding",
   },
   {
-    src: "clips/03-parto.mp4",
+    src: "clips/enhanced/03-parto.mp4",
     from: 0,
     to: 21.3,
     gain: 1,
@@ -57,7 +57,7 @@ export const CLIPS: ClipSpec[] = [
     sfx: "ding",
   },
   {
-    src: "clips/04-complicaciones.mp4",
+    src: "clips/enhanced/04-complicaciones.mp4",
     from: 1.4,
     to: 10.49,
     gain: 1.8,
@@ -67,7 +67,7 @@ export const CLIPS: ClipSpec[] = [
     sfx: "boom",
   },
   {
-    src: "clips/05-seguro.mp4",
+    src: "clips/enhanced/05-seguro.mp4",
     from: 1.0,
     to: 19.14,
     gain: 1.15,
