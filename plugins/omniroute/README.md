@@ -28,10 +28,19 @@ en otro proyecto:
 /plugin install omniroute --marketplace gdltuasesorvip-png/Prueba
 ```
 
-## Otro puerto, otro host o token
+## Token de acceso (obligatorio)
 
-Edita `url` en `.claude-plugin/plugin.json`. Si tu instancia exige token, agrega:
+El endpoint MCP de OmniRoute responde `401 Authentication required` sin token. Crea uno en el panel
+de OmniRoute (http://localhost:20128, inicia sesión con la clave de administrador) o con la CLI una vez
+autenticada:
 
-```json
-"headers": { "Authorization": "Bearer TU_TOKEN" }
+```bash
+omniroute tokens create --name claude-code-mcp --scope read
 ```
+
+Guarda el valor en la variable de entorno `OMNIROUTE_API_KEY` antes de abrir Claude Code. El plugin la
+envía como cabecera `Authorization: Bearer ...`. No pongas el token en el repositorio.
+
+## Otro puerto u otro host
+
+Edita `url` en `.claude-plugin/plugin.json`.
