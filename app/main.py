@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Cotizador de Seguros", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
-templates.env.globals.update(COMPANIAS=config.COMPANIAS, RAMOS=config.RAMOS, ROLES=config.ROLES)
+templates.env.globals.update(COMPANIAS=config.COMPANIAS, RAMOS=config.RAMOS, ROLES=config.ROLES, COMPANY_COLORS=config.COMPANY_COLORS)
 
 
 # --------------------------------------------------------------------------- utilidades
@@ -113,13 +113,7 @@ def client_view_context(request: Request, comp: dict[str, Any]) -> dict[str, Any
     token = comp.get("share_token") or ensure_share_token(comp["id"])
     share_url = str(request.base_url).rstrip("/") + f"/c/{token}"
     phone = re.sub(r"\D", "", comp.get("client_phone") or "")
-    greeting = comp["client_name"].split(" ")[0] if comp.get("client_name") else ""
-    text = (
-        f"Hola {greeting}, te comparto la comparativa de seguros de {comp['ramo_label'].lower()} "
-        f"con {len(comp['ready'])} opciones: {share_url}"
-    )
-    if settings.get("oficina_nombre"):
-        text += f"\n{settings['oficina_nombre']}"
+    text = whatsapp_summary(comp, share_url, settings)
     wa = f"https://wa.me/{phone}?text={quote(text)}" if phone else f"https://wa.me/?text={quote(text)}"
     return {"settings": settings, "share_url": share_url, "whatsapp_url": wa, "share_text": text}
 
@@ -171,12 +165,48 @@ def load_comparison(comparison_id: int) -> dict[str, Any]:
     covered = [(q, _amount(q.get("suma_asegurada"))) for q in ready]
     covered = [(q, a) for q, a in covered if a is not None]
     comp["best_cover_id"] = max(covered, key=lambda t: t[1])[0]["id"] if len(covered) > 1 else None
+    comp["groups"] = build_groups(ready)
     comp["pending"] = any(d["extraction_status"] == "pendiente" for d in documents) or comp[
         "analysis_status"
     ] == "procesando"
     priced = [q for q in comp["ready"] if q["prima_anual"] is not None]
     comp["cheapest_id"] = min(priced, key=lambda q: q["prima_anual"])["id"] if len(priced) > 1 else None
     return comp
+
+
+def build_groups(ready: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Agrupa los planes incluidos por compañía; cada grupo ordenado por prima y los grupos por su plan más barato."""
+    groups: dict[str, dict[str, Any]] = {}
+    for q in ready:  # ready ya viene ordenado por prima
+        key = q["company_label"]
+        g = groups.setdefault(
+            key,
+            {"company": q["company"], "label": key, "color": config.COMPANY_COLORS.get(q["company"], config.COMPANY_COLORS["otra"]), "quotes": []},
+        )
+        g["quotes"].append(q)
+    def min_price(g: dict[str, Any]) -> tuple[bool, float]:
+        prices = [q["prima_anual"] for q in g["quotes"] if q["prima_anual"] is not None]
+        return (not prices, min(prices) if prices else 0.0)
+    return sorted(groups.values(), key=min_price)
+
+
+def whatsapp_summary(comp: dict[str, Any], share_url: str, settings: dict[str, str]) -> str:
+    """Resumen en el estilo de los mensajes de WhatsApp: un bloque por compañía, un plan por línea."""
+    greeting = comp["client_name"].split(" ")[0] if comp.get("client_name") else ""
+    lines = [f"Hola {greeting}, te comparto las opciones de seguro de {comp['ramo_label'].lower()}:", ""]
+    for g in comp["groups"]:
+        lines.append(f"*{g['label'].upper()}*")
+        for q in g["quotes"]:
+            if q["prima_anual"] is not None:
+                precio = f"{fmt_money(q['prima_anual'] / 12, q['moneda'])} mensuales ({fmt_money(q['prima_anual'], q['moneda'])} al año)"
+            else:
+                precio = "prima por confirmar"
+            lines.append(f"• {q.get('plan') or 'Plan'} → {precio}")
+        lines.append("")
+    lines.append(f"Comparativa completa con coberturas: {share_url}")
+    if settings.get("oficina_nombre"):
+        lines.append(settings["oficina_nombre"])
+    return "\n".join(lines).strip()
 
 
 def build_coverage_matrix(quotes: list[dict[str, Any]]) -> list[dict[str, Any]]:

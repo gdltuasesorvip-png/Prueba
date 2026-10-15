@@ -30,6 +30,30 @@
     .bar { height: 6px; background: #eef1f5; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
     .pcard.best .bar span { background: var(--ok); }
+    .groups { display: grid; gap: 16px; margin-bottom: 20px; }
+    .cgroup { background: #fff; border: 1px solid var(--border); border-left: 6px solid var(--cc); border-radius: 12px; overflow: hidden; }
+    .cgroup-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: color-mix(in srgb, var(--cc) 8%, #fff); border-bottom: 1px solid var(--border); }
+    .cgroup-head .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--cc); }
+    .cgroup-head h2 { margin: 0; font-size: 1.1rem; color: var(--cc); flex: 1; }
+    .cgroup-head .count { font-size: .8rem; color: var(--muted); }
+    .plans-list { list-style: none; margin: 0; padding: 0; }
+    .plan-item { display: flex; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); align-items: center; }
+    .plan-item:last-child { border-bottom: 0; }
+    .plan-item.best { background: #f1faf4; }
+    .plan-name { font-weight: 600; font-size: 1rem; }
+    .plan-meta { color: var(--muted); font-size: .82rem; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; }
+    .plan-price { text-align: right; min-width: 150px; }
+    .plan-price .monthly { font-size: 1.3rem; font-weight: 800; color: var(--cc); white-space: nowrap; }
+    .plan-item.best .monthly { color: var(--ok); }
+    .plan-price .monthly small { font-size: .7rem; font-weight: 500; color: var(--muted); margin-left: 3px; }
+    .plan-price .yearly { font-size: .82rem; color: var(--muted); }
+    .plan-price .bar { height: 5px; background: #eef1f5; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+    .plan-price .bar span { display: block; height: 100%; background: var(--cc); border-radius: 3px; }
+    .plan-item.best .bar span { background: var(--ok); }
+    .badge { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-top: 6px; margin-right: 6px; }
+    .badge-best { background: #e3f5ea; color: var(--ok); }
+    .badge-cover { background: #e7effa; color: var(--info); }
+    @media (max-width: 520px) { .plan-item { flex-direction: column; align-items: stretch; } .plan-price { text-align: left; } }
     .client-footer { margin-top: 24px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 12px; }
     .client-footer strong { color: var(--text); }
     @media print { .noprint { display: none !important; } body { background: #fff; } .client-page { padding: 0; max-width: none; } .client-head { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .pcard { break-inside: avoid; } }
@@ -61,22 +85,40 @@
   {% set priced = comp.ready | selectattr('prima_anual') | list %}
   {% set max_price = (priced | map(attribute='prima_anual') | max) if priced else 0 %}
   {% if comp.ready %}
-  <div class="cards">
-    {% for q in comp.ready %}
-    <div class="pcard {% if q.id == comp.cheapest_id %}best{% endif %}">
-      <span class="rank">Opción {{ loop.index }}</span>
-      <div class="company">{{ q.company_label }}</div>
-      <div class="plan">{{ q.plan or '—' }}</div>
-      <div class="price">{{ q.prima_anual | money(q.moneda) }}</div>
-      <div class="per">prima anual{% if q.prima_anual %} · aprox. {{ (q.prima_anual / 12) | money(q.moneda) }} al mes{% endif %}</div>
-      {% if q.prima_anual and max_price %}<div class="bar"><span style="width: {{ (q.prima_anual / max_price * 100) | round }}%"></span></div>{% endif %}
-      <div class="meta">
-        <div><span class="muted">Suma asegurada:</span> {{ q.suma_asegurada or '—' }}</div>
-        <div><span class="muted">Deducible:</span> {{ q.deducible or '—' }}</div>
-      </div>
-      {% if q.id == comp.cheapest_id %}<span class="badge badge-best">Más económico</span>{% endif %}
-      {% if q.id == comp.best_cover_id %}<span class="badge badge-cover">Mayor suma asegurada</span>{% endif %}
-    </div>
+  <div class="groups">
+    {% for g in comp.groups %}
+    <section class="cgroup" style="--cc: {{ g.color }}">
+      <header class="cgroup-head">
+        <span class="dot"></span>
+        <h2>{{ g.label }}</h2>
+        <span class="count">{{ g.quotes | length }} plan{{ 'es' if g.quotes | length != 1 }}</span>
+      </header>
+      <ul class="plans-list">
+        {% for q in g.quotes %}
+        <li class="plan-item {% if q.id == comp.cheapest_id %}best{% endif %}">
+          <div class="plan-main">
+            <div class="plan-name">{{ q.plan or 'Plan' }}</div>
+            <div class="plan-meta">
+              {% if q.suma_asegurada %}<span>Suma asegurada {{ q.suma_asegurada }}</span>{% endif %}
+              {% if q.deducible %}<span>Deducible {{ q.deducible }}</span>{% endif %}
+              {% if q.primas_fraccionadas %}<span>{{ q.primas_fraccionadas }}</span>{% endif %}
+            </div>
+            {% if q.id == comp.cheapest_id %}<span class="badge badge-best">Más económico</span>{% endif %}
+            {% if q.id == comp.best_cover_id %}<span class="badge badge-cover">Mayor suma asegurada</span>{% endif %}
+          </div>
+          <div class="plan-price">
+            {% if q.prima_anual is not none %}
+            <div class="monthly">{{ (q.prima_anual / 12) | money(q.moneda) }}<small>/mes aprox.</small></div>
+            <div class="yearly">{{ q.prima_anual | money(q.moneda) }} al año</div>
+            {% if max_price %}<div class="bar"><span style="width: {{ (q.prima_anual / max_price * 100) | round }}%"></span></div>{% endif %}
+            {% else %}
+            <div class="monthly muted">Por confirmar</div>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
     {% endfor %}
   </div>
 

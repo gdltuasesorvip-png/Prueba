@@ -34,8 +34,20 @@
     </div>
   </div>
   <p class="muted small" id="share-msg">El enlace muestra solo los planes marcados con ✓ y el análisis, con los datos de tu oficina.</p>
+  <details class="mt">
+    <summary>Ver o copiar el resumen en texto (estilo WhatsApp)</summary>
+    <textarea id="share-text" class="share-textarea" rows="10" readonly>{{ share_text }}</textarea>
+    <button class="btn btn-sm mt" type="button" onclick="copyText()">Copiar resumen</button>
+  </details>
 </div>
 <script>
+function copyText() {
+  const el = document.getElementById('share-text');
+  el.select();
+  navigator.clipboard.writeText(el.value).then(() => {
+    document.getElementById('share-msg').textContent = 'Resumen copiado. Pégalo en WhatsApp.';
+  }).catch(() => document.execCommand('copy'));
+}
 function copyShare() {
   const el = document.getElementById('share-url');
   el.select();

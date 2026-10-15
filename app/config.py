@@ -52,3 +52,10 @@ ROLES = {
     "admin": "Administrador",
     "agente": "Agente",
 }
+
+COMPANY_COLORS = {
+    "mercantil": "#1a4fa3",
+    "oceanica": "#0b7a75",
+    "hispana": "#c2187a",
+    "otra": "#5b6775",
+}

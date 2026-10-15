@@ -426,9 +426,15 @@ def test_share_link_pdf_and_select_all(client, monkeypatch):
     assert [q["plan"] for q in comp["ready"]] == ["Familiar", "Oro", "Plus"]
     assert next(q for q in comp["ready"] if q["id"] == comp["best_cover_id"])["plan"] == "Plus"
 
-    # Enlace público con el teléfono del cliente en WhatsApp
+    # Bloques por compañía ordenados por su plan más barato
+    assert [g["label"] for g in comp["groups"]] == ["Hispana de Seguros", "Oceánica de Seguros", "Mercantil Seguros"]
+    text = main.whatsapp_summary(comp, "https://x/c/abc", {"oficina_nombre": "Oficina Díaz"})
+    assert "*HISPANA DE SEGUROS*" in text and "• Familiar → USD 115,83 mensuales (USD 1.390,00 al año)" in text
+    assert text.index("HISPANA") < text.index("MERCANTIL") and text.endswith("Oficina Díaz")
+
+    # Enlace público con el teléfono del cliente en WhatsApp y resumen copiable
     r = client.get(f"/cotizaciones/{comp_id}")
-    assert "Copiar enlace" in r.text and "wa.me/584121234567" in r.text
+    assert "Copiar enlace" in r.text and "wa.me/584121234567" in r.text and "Copiar resumen" in r.text
     token = r.text.split('id="share-url" value="')[1].split("/c/")[1].split('"')[0]
     assert len(token) >= 12
 
