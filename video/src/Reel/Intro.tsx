@@ -1,12 +1,16 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
+  Sequence,
   interpolate,
   spring,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
 import { COLORS, FONT } from "./clips";
+import { KineticText } from "./KineticText";
 
 export const Intro: React.FC<{ title: string; subtitle: string }> = ({
   title,
@@ -15,13 +19,12 @@ export const Intro: React.FC<{ title: string; subtitle: string }> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const pop = spring({ frame, fps, config: { damping: 14, stiffness: 120 } });
   const subIn = spring({
-    frame: frame - 12,
+    frame: frame - 22,
     fps,
     config: { damping: 16, stiffness: 100 },
   });
-  const lineW = interpolate(frame, [8, 30], [0, 320], {
+  const lineW = interpolate(frame, [14, 36], [0, 320], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -31,6 +34,7 @@ export const Intro: React.FC<{ title: string; subtitle: string }> = ({
     [1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
   );
+  const drift = frame * 0.6;
 
   return (
     <AbsoluteFill
@@ -43,10 +47,16 @@ export const Intro: React.FC<{ title: string; subtitle: string }> = ({
         opacity: fadeOut,
       }}
     >
+      <Sequence durationInFrames={40}>
+        <Audio src={staticFile("audio/riser.mp3")} volume={0.5} />
+      </Sequence>
+      <Sequence from={30} durationInFrames={40}>
+        <Audio src={staticFile("audio/ding.mp3")} volume={0.5} />
+      </Sequence>
       <div
         style={{
           position: "absolute",
-          top: -200,
+          top: -200 + drift,
           right: -200,
           width: 700,
           height: 700,
@@ -58,7 +68,7 @@ export const Intro: React.FC<{ title: string; subtitle: string }> = ({
       <div
         style={{
           position: "absolute",
-          bottom: -260,
+          bottom: -260 + drift * 0.5,
           left: -220,
           width: 640,
           height: 640,
@@ -67,19 +77,20 @@ export const Intro: React.FC<{ title: string; subtitle: string }> = ({
           opacity: 0.18,
         }}
       />
-      <div
+      <KineticText
+        text={title}
+        startFrame={4}
+        stagger={5}
         style={{
-          transform: `scale(${pop})`,
+          justifyContent: "center",
           color: COLORS.white,
-          fontSize: 104,
+          fontSize: 108,
           fontWeight: 800,
           lineHeight: 1.05,
           textAlign: "center",
           letterSpacing: -2,
         }}
-      >
-        {title}
-      </div>
+      />
       <div
         style={{
           width: lineW,

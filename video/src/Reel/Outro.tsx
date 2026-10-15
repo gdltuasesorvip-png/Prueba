@@ -1,12 +1,16 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
+  Sequence,
   interpolate,
   spring,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
 import { COLORS, FONT } from "./clips";
+import { KineticText } from "./KineticText";
 
 export const Outro: React.FC<{
   headline: string;
@@ -19,13 +23,13 @@ export const Outro: React.FC<{
   const fadeIn = interpolate(frame, [0, 12], [0, 1], {
     extrapolateRight: "clamp",
   });
-  const head = spring({ frame, fps, config: { damping: 14, stiffness: 110 } });
   const pill = spring({
-    frame: frame - 14,
+    frame: frame - 22,
     fps,
-    config: { damping: 12, stiffness: 140 },
+    config: { damping: 11, stiffness: 150 },
   });
-  const brandIn = interpolate(frame, [30, 45], [0, 1], {
+  const pulse = 1 + 0.03 * Math.sin((frame - 22) / 5) * (frame > 40 ? 1 : 0);
+  const brandIn = interpolate(frame, [36, 50], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -41,6 +45,9 @@ export const Outro: React.FC<{
         opacity: fadeIn,
       }}
     >
+      <Sequence from={22} durationInFrames={45}>
+        <Audio src={staticFile("audio/sparkle.mp3")} volume={0.55} />
+      </Sequence>
       <div
         style={{
           position: "absolute",
@@ -53,10 +60,12 @@ export const Outro: React.FC<{
           opacity: 0.18,
         }}
       />
-      <div
+      <KineticText
+        text={headline}
+        startFrame={4}
+        stagger={5}
         style={{
-          transform: `translateY(${(1 - head) * 60}px)`,
-          opacity: head,
+          justifyContent: "center",
           color: COLORS.white,
           fontSize: 92,
           fontWeight: 800,
@@ -64,13 +73,11 @@ export const Outro: React.FC<{
           textAlign: "center",
           letterSpacing: -2,
         }}
-      >
-        {headline}
-      </div>
+      />
       <div
         style={{
           marginTop: 70,
-          transform: `scale(${Math.max(pill, 0)})`,
+          transform: `scale(${Math.max(pill, 0) * pulse})`,
           background: COLORS.lime,
           color: COLORS.bg,
           fontSize: 46,
@@ -78,9 +85,10 @@ export const Outro: React.FC<{
           padding: "28px 56px",
           borderRadius: 999,
           textAlign: "center",
+          boxShadow: `0 0 40px rgba(212,242,58,0.45)`,
         }}
       >
-        {cta}
+        💬 {cta}
       </div>
       {brand ? (
         <div

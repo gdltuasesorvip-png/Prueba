@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill } from "remotion";
+import { AbsoluteFill, Audio, interpolate, staticFile } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import { z } from "zod";
@@ -28,6 +28,10 @@ export const reelSchema = z.object({
   outroHeadline: z.string(),
   cta: z.string(),
   brand: z.string(),
+  /** Volumen de la música mientras habla la presentadora (0 a 1). */
+  musicUnderVoice: z.number().min(0).max(1),
+  /** Volumen de la música en portada y cierre (0 a 1). */
+  musicFull: z.number().min(0).max(1),
 });
 
 export const Reel: React.FC<z.infer<typeof reelSchema>> = ({
@@ -36,9 +40,43 @@ export const Reel: React.FC<z.infer<typeof reelSchema>> = ({
   outroHeadline,
   cta,
   brand,
+  musicUnderVoice,
+  musicFull,
 }) => {
+  const total = totalFrames();
+  const clipsStart = INTRO_FRAMES - TRANSITION_FRAMES;
+  const outroStart = total - OUTRO_FRAMES;
+
+  // La música baja cuando habla la presentadora y sube en portada y cierre.
+  const musicVolume = (f: number) =>
+    interpolate(
+      f,
+      [
+        0,
+        20,
+        clipsStart,
+        clipsStart + TRANSITION_FRAMES,
+        outroStart,
+        outroStart + TRANSITION_FRAMES,
+        total - 30,
+        total - 1,
+      ],
+      [
+        0,
+        musicFull,
+        musicFull,
+        musicUnderVoice,
+        musicUnderVoice,
+        musicFull,
+        musicFull,
+        0,
+      ],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      <Audio src={staticFile("audio/music.mp3")} volume={musicVolume} loop />
       <TransitionSeries>
         <TransitionSeries.Sequence durationInFrames={INTRO_FRAMES}>
           <Intro title={title} subtitle={subtitle} />

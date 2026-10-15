@@ -20,6 +20,8 @@ export const RemotionRoot: React.FC = () => {
         outroHeadline: "Protege lo que más importa",
         cta: "Escríbenos por WhatsApp",
         brand: "",
+        musicUnderVoice: 0.25,
+        musicFull: 0.55,
       }}
     />
   );
