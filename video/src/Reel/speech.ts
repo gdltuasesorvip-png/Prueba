@@ -51,9 +51,11 @@ export const findAmounts = (words: Word[]): AmountEvent[] => {
     });
     if (core.length) {
       const digits = run.find((w) => /\d/.test(w.w));
-      const text = digits
-        ? run.filter((w) => /\d|\$/.test(w.w)).map((w) => w.w).join(" ")
-        : run.map((w) => w.w).join(" ");
+      const tokens = (digits ? run.filter((w) => /\d|\$/.test(w.w)) : run).map((w) =>
+        w.w.replace(/[,.?!]$/, ""),
+      );
+      // Si repite la misma cifra seguida ("$11.300, $11.300"), se muestra una vez.
+      const text = tokens.filter((tk, i) => i === 0 || tk !== tokens[i - 1]).join(" ");
       events.push({ start: run[0].s, end: run[run.length - 1].e, text: text.replace(/[,.]$/, "") });
     }
     run = [];
