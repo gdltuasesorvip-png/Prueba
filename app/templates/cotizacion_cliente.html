@@ -79,6 +79,9 @@
 </head>
 <body>
 <main class="client-page">
+  {% if not public %}
+  <div class="flash flash-info noprint">Vista previa: así lo verá el cliente al abrir su enlace.{% if not office_wa %} <strong>Los botones "Quiero este plan" aparecerán cuando pongas tu teléfono en el menú <a href="/configuracion">Oficina</a>.</strong>{% endif %}</div>
+  {% endif %}
   <div class="toolbar noprint">
     <a class="btn btn-primary" href="{{ pdf_url }}">Descargar PDF</a>
     <button class="btn" onclick="window.print()">Imprimir</button>
@@ -91,7 +94,7 @@
     <div>
       <h1>Comparativa de seguros · {{ comp.ramo_label }}</h1>
       <div class="sub">Preparada para <strong>{{ comp.client_name }}</strong>{% if comp.client_document %} · {{ comp.client_document }}{% endif %} · {{ comp.created_at[:10] }}</div>
-      {% if public and office_wa %}<a class="btn btn-head" href="/c/{{ token }}/pregunta">Tengo una pregunta</a>{% endif %}
+      {% if office_wa %}<a class="btn btn-head" href="{% if public %}/c/{{ token }}/pregunta{% else %}#{% endif %}">Tengo una pregunta</a>{% endif %}
     </div>
     <div class="office">
       {% if settings.oficina_nombre %}<div><strong>{{ settings.oficina_nombre }}</strong></div>{% endif %}
@@ -122,10 +125,10 @@
       </div>
     </div>
     {% if comp.recommendation and comp.recommendation_status == 'ok' %}<p class="reco-text">“{{ comp.recommendation }}”</p>{% endif %}
-    {% if public and office_wa %}
+    {% if office_wa %}
     <div class="reco-actions">
-      <a class="btn btn-wa" href="/c/{{ token }}/elegir/{{ r.id }}">Quiero este plan</a>
-      <a class="btn btn-ghost" href="/c/{{ token }}/pregunta">Tengo una pregunta</a>
+      <a class="btn btn-wa" href="{% if public %}/c/{{ token }}/elegir/{{ r.id }}{% else %}#{% endif %}">Quiero este plan</a>
+      <a class="btn btn-ghost" href="{% if public %}/c/{{ token }}/pregunta{% else %}#{% endif %}">Tengo una pregunta</a>
     </div>
     {% endif %}
   </section>
@@ -160,7 +163,7 @@
             {% else %}
             <div class="monthly muted">Por confirmar</div>
             {% endif %}
-            {% if public and office_wa %}<a class="choose" href="/c/{{ token }}/elegir/{{ q.id }}">Quiero este plan →</a>{% endif %}
+            {% if office_wa %}<a class="choose" href="{% if public %}/c/{{ token }}/elegir/{{ q.id }}{% else %}#{% endif %}">Quiero este plan →</a>{% endif %}
           </div>
         </li>
         {% endfor %}
