@@ -31,6 +31,7 @@ app = FastAPI(title="Cotizador de Seguros", docs_url=None, redoc_url=None, lifes
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.globals.update(COMPANIAS=config.COMPANIAS, RAMOS=config.RAMOS, ROLES=config.ROLES, COMPANY_COLORS=config.COMPANY_COLORS)
+templates.env.filters["json_es"] = lambda value: json.dumps(value, ensure_ascii=False)
 
 
 # --------------------------------------------------------------------------- utilidades

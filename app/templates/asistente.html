@@ -46,7 +46,7 @@
     {% for p in resultado.pasos %}
     <li>
       <code>{{ p.herramienta }}</code>
-      <span class="muted small">{{ p.entrada | tojson }}</span>
+      <span class="muted small">{{ p.entrada | json_es }}</span>
       {% if p.error %}<span class="tag tag-pyme">error</span>{% endif %}
       <details><summary class="muted small">ver resultado</summary><pre class="analysis small">{{ p.resultado }}</pre></details>
     </li>
