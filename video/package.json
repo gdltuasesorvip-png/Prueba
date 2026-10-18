@@ -1,0 +1,31 @@
+{
+  "name": "editor-remotion",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Borrador out/borrador.mp4",
+    "typecheck": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/captions": "^4.0.536",
+    "@remotion/cli": "^4.0.536",
+    "@remotion/google-fonts": "^4.0.536",
+    "@remotion/media-utils": "^4.0.536",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.536"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
+  },
+  "private": true
+}
