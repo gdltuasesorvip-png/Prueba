@@ -67,3 +67,37 @@ todavía: se añadirá lo que apruebes.
   entre −9 y −12 dB respecto a la voz. Sin música (no hay pista disponible en este entorno; si me pasas una, la
   integro a −18 LUFS bajo la voz).
 - **Barra de progreso** ámbar de 8 px en la base.
+
+# Versión v3 "máxima creatividad" (`out/v3.mp4`, composición `V3`, código en `src/v3/`)
+
+Misma lista de edición. Paleta solo de azules (noche #040b1f, marino #0a1a3f, real #0e56f6, eléctrico #2f7bff,
+cielo #58a6ff, cian #4fd1ff, hielo #dbe9ff). Correcciones confirmadas con Whisper medium: "días en terapia
+intensiva" y "meter un **jonrón**".
+
+- **Texto detrás de la persona**: recorte con MediaPipe (`scripts/recorte_persona.py`, 210 fotogramas en
+  `public/recorte/`). "EMBARAZADA" en el gancho y "AHORA" al final aparecen detrás de ti, letra a letra.
+- **Cámara**: cada frase de busto cambia de encuadre (1,0 / 1,28 / 1,12 / 1,36, con giros de ±1°), golpe de zoom
+  en cada corte, deslizamiento con desenfoque en cortes alternos, barrido (whip pan) al entrar al cuaderno,
+  sacudida en el jonrón y empujón en "¿es un buen trato?".
+- **Transiciones** (todas distintas): persianas verticales (apertura y coste), corte diagonal (salida de coste y
+  de ahorro), líquido con círculos (complicaciones), zoom + light leak azul (salida de complicaciones), estela de
+  barrido (cuaderno), escudo que se abre (cobertura), giro 3D (cobertura→ahorro), reloj que barre la pantalla
+  (plazo), persianas horizontales (salida de plazo), el vídeo se encoge dentro de un móvil y vuelve a crecer
+  (comenta), glitch con aberración cromática (pantalla final).
+- **Picture-in-picture**: tu cara en un círculo con anillo giratorio en todas las escenas gráficas, sincronizada.
+- **Ilustraciones SVG propias que se dibujan solas**: hospital, incubadora, monitor cardíaco, cruz médica,
+  escudo, bebé, familia, pelota de béisbol, reloj, calculadora, calendario de 12 meses, cursor.
+- **Momentos sobre el busto**: pantalla partida mamá/bebé, calculadora en "saquemos la cuenta", ticket que se
+  imprime con las cifras del cuaderno y sello "¿BUEN TRATO?", "?" gigante, ¡JONRÓN! con pelota, estela, rayos y
+  light leak, reloj en "ahora", familia en "familia", botón "+ Seguir" que se pulsa con un cursor.
+- **Escenas**: contador 0→6.000→10.000 $ con termómetro; tarjetas de complicaciones que caen en 3D con ECG en
+  bucle y línea que se dispara; fichas de cobertura + calendario que se ilumina mes a mes; barras 1.200 vs 8.800 con
+  "×8" y rayos; línea de plazo de espera con marcador y sello "LLEGASTE TARDE"; móvil con comentario "maternidad"
+  escribiéndose, burbuja "Escríbeme" y tarjeta "el plan que te conviene".
+- **Subtítulos**: palabra destacada letra a letra con rebote; sobre vídeo en píldora con degradado azul.
+- **Acabado**: etalonaje azul (soft-light + sombras marino + viñeta), grano de película, bokeh azul en escenas
+  oscuras, barra de progreso con degradado arriba, fondos con retícula que se desplaza.
+- **Sonido**: whoosh en cada transición, pop/ding en elementos, golpe grave en "embarazada", "dispara", "×8",
+  "jonrón", "tarde" y "ahora", subida en contadores, interferencia en la pantalla final. Sin música.
+- **Pantalla final**: avatar con anillo giratorio, suelo de retícula en perspectiva, buscador que escribe el usuario
+  y botón pulsante. Marca y usuario siguen siendo de relleno.

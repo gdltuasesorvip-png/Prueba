@@ -100,7 +100,7 @@ el resto del *año* para cualquier emergencia.
 Pagas *1.200*
 te ahorras hasta *8.800* o más.
 Es *8 veces* lo que invertiste.
-Eso en criollo se llama meter un *ron.*
+Eso en criollo se llama meter un *jonrón.*
 Pero ojo, la maternidad tiene plazo de *espera.*
 Si contratas cuando ya estás *embarazada*
 llegaste *tarde.*
