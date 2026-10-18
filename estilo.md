@@ -162,3 +162,7 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
 ### Pantalla final
 - Fondo noche con suelo de retícula en perspectiva, avatar con anillo giratorio, buscador que escribe el usuario y
   botón "Sígueme para más" pulsante. Entra con glitch y light leak.
+- Cuentas del cliente (siempre las dos, una debajo de otra, con icono genérico en cian):
+  Instagram **@tuagentedesegurosdlb** · TikTok **@tuasesorintegralvip**.
+- Título: "Tu asesor integral VIP" (tomado del usuario de TikTok) y subtítulo "seguros de salud · maternidad"
+  **[SUPOSICIÓN: confirmar nombre de marca]**.

@@ -183,7 +183,13 @@ export const V3: React.FC = () => {
       </Sequence>
 
       <Sequence name="Pantalla final" from={Math.round((DURACION_VOZ + HUECO_FINAL) * fps)} durationInFrames={Math.round(PANTALLA_FINAL * fps)}>
-        <Final3 marca="Tu asesor VIP" usuario="@tu.usuario" />
+        <Final3
+          marca="Tu asesor integral VIP"
+          cuentas={[
+            { red: "instagram", usuario: "@tuagentedesegurosdlb" },
+            { red: "tiktok", usuario: "@tuasesorintegralvip" },
+          ]}
+        />
       </Sequence>
       <Grano opacidad={0.06} />
     </AbsoluteFill>
