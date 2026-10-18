@@ -115,4 +115,50 @@ convertidas a 1080×1920. Todo lo que no se pudo medir va marcado como **[SUPOSI
 - Los huecos > 0,30 s se eliminan; se mantiene 0,10–0,15 s de aire en cada corte para que no suene cortado.
 
 ## 10. Reglas aprendidas con el cliente
-(Se añaden aquí las correcciones que el cliente apruebe.)
+Aprobado por el cliente (2026-10-18): la **v3** (`video/src/V3.tsx`, `video/src/v3/`) es el estilo de referencia.
+Estas reglas mandan sobre las secciones 1–9 cuando choquen.
+
+### Paleta (solo azules)
+- noche #040b1f · marino #0a1a3f · profundo #10275e · real #0e56f6 · eléctrico #2f7bff · cielo #58a6ff ·
+  cian #4fd1ff · hielo #dbe9ff · niebla #eef4ff · blanco #f7faff · gris #7d8bb0.
+- Degradado de marca: 100°, real → eléctrico → cian.
+- Escenas alternando fondo claro (blanco→niebla) y oscuro (marino→noche), con dos manchas azules que derivan y
+  retícula de 72 px que se desplaza.
+- Vídeo: tinte real en soft-light al 20 %, sombras marino al 32 %, viñeta marino; grano de película al 6 %.
+
+### Texto detrás de la persona
+- En el gancho y en el remate final, la palabra clave en mayúsculas gigantes (150–250 px, Nunito 900, azul real)
+  aparece DETRÁS de la persona, letra a letra cayendo desde arriba (1,3 fotogramas entre letras).
+- Se hace con `video/scripts/recorte_persona.py` (MediaPipe selfie multiclass). En esos planos, encuadre abierto
+  (escala 1,0) para que el texto quepa.
+
+### Cámara
+- Cada frase de busto = un "plano" distinto, en ciclo: 1,0 / 1,28 (−1,2°) / 1,12 (+1°) / 1,36. Avance lento del
+  3,5 % en 3 s. Golpe de zoom del 7 % en cada corte; en cortes alternos, deslizamiento de 90 px con desenfoque.
+- Barrido (whip pan) con estela azul al pasar a b-roll; sacudida de 0,45 s en el momento cumbre.
+
+### Transiciones (nunca repetir la misma dos veces seguidas)
+- Persianas verticales/horizontales, corte diagonal, círculos líquidos, zoom + light leak azul (hueShift 185),
+  escudo que se abre, giro 3D, reloj que barre la pantalla, vídeo que se encoge dentro de un móvil, glitch final.
+- Elegir la forma por el tema: escudo para coberturas, reloj para plazos, móvil para llamadas a la acción.
+
+### Escenas gráficas
+- Tu cara en un círculo (230 px, arriba a la derecha) con anillo de degradado giratorio, siempre sincronizada.
+- Ilustraciones de línea que se dibujan solas (trazo 7–10 px), tarjetas que caen en 3D o rebotan, cifras que
+  cuentan hacia arriba en 0,6 s, sellos inclinados (−6 a −10°) para remates ("¿BUEN TRATO?", "LLEGASTE TARDE").
+- Sobre b-roll real, un elemento que acompañe lo que se dice (p. ej. ticket que se imprime con las cifras).
+- Un momento "espectáculo" por vídeo ligado a una expresión coloquial (p. ej. ¡JONRÓN! con pelota y rayos).
+
+### Subtítulos
+- Normales: Nunito 800, 48 px; blanco con sombra marino sobre vídeo, marino sobre claro, blanco sobre oscuro.
+- Destacada: Nunito 900 hasta 108 px, letra a letra con rebote; sobre vídeo, dentro de una píldora con el
+  degradado de marca inclinada −2°; cian sobre oscuro, azul real sobre claro.
+- Posición: pecho (y 1390) sobre busto, y 1500–1520 sobre gráficos/b-roll.
+
+### Sonido
+- Whoosh en cada transición, pop al aparecer elementos, ding en checks, golpe grave en los remates, subida en
+  contadores, interferencia en la pantalla final. Voz a −15 LUFS. Sin música salvo que el cliente aporte pista.
+
+### Pantalla final
+- Fondo noche con suelo de retícula en perspectiva, avatar con anillo giratorio, buscador que escribe el usuario y
+  botón "Sígueme para más" pulsante. Entra con glitch y light leak.
