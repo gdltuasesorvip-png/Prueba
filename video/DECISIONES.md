@@ -42,3 +42,28 @@ El cuaderno (clip 2) hace de b-roll real entre 20,5 s y 39,8 s; los subtítulos 
 - Usuario y marca de la pantalla final.
 - Confirmar "días en terapia intensiva".
 - Dato: en el clip 1 dices "entre 6 mil y 10 mil"; en el cuaderno, "entre 4.000 y 6 mil". Lo dejo tal cual.
+
+# Versión v2 "creativa" (`out/creativo.mp4`, composición `Creativo`)
+
+Misma lista de edición y subtítulos que la v1; cambia la puesta en escena. Nada de esto está en `estilo.md`
+todavía: se añadirá lo que apruebes.
+
+- **Cambios de cámara**: dentro de cada plano de busto, cada bloque de subtítulo alterna plano general (escala 1,0)
+  y plano corto (escala 1,22 centrado en la cara, con un ligero desplazamiento lateral cada 4 cortes), más un avance
+  lento del 4 % en 3 s. En el cuaderno, push-in continuo del 6 %.
+- **Arranque**: el busto aparece dentro de una tarjeta inclinada (−4°, escala 0,64) sobre un degradado ámbar→coral y
+  se amplía a pantalla completa en 5 fotogramas al decir "saber".
+- **Transiciones** (12 fotogramas de entrada, 8 de salida), una distinta por escena: círculo (coste, plazo), zoom con
+  desenfoque (complicaciones), deslizamiento (cobertura, comenta), barrido lateral (ahorro). El vídeo da un
+  "golpe" de escala del 8 % en cada entrada/salida.
+- **Color**: paleta por escena, alternando fondos claros y oscuros con manchas de color animadas:
+  coste azul (claro), complicaciones coral/ámbar (oscuro), cobertura verde (claro), ahorro ámbar/verde (oscuro),
+  plazo rosa (claro), comenta violeta/cian (oscuro). Busto: contraste 1,06, saturación 1,18, viñeta.
+- **Subtítulos**: destacada con "pop" (rebote 7 fotogramas) y, sobre busto y cuaderno, en píldora de color
+  inclinada −2°. Sobre busto van más abajo (y 1380 px) para no tapar la cara en el plano corto.
+- **Gráficos**: cifras que cuentan de 0 al valor en 0,7 s; línea que "se dispara"; checklist con latido al marcarse;
+  "×8" entra con rebote; tarjetas ligeramente inclinadas (±1,5–3°).
+- **Sonido**: efectos sintetizados con ffmpeg (whoosh en cada transición, pop en cifras, ding en checks),
+  entre −9 y −12 dB respecto a la voz. Sin música (no hay pista disponible en este entorno; si me pasas una, la
+  integro a −18 LUFS bajo la voz).
+- **Barra de progreso** ámbar de 8 px en la base.
