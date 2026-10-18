@@ -103,7 +103,7 @@ def tf(txt, desde=0.0): return round(a_salida(W(txt, desde)["end"]), 3)
 
 T = {
     "hola": t("Hola"), "asegurarte": t("asegurarte"), "no": t("no.", 17), "dicho": t("dicho"), "botar": t("botar", 19.9),
-    "plata": t("plata"), "colchon": t("colchón"), "flashFin": round(a_salida(25.8), 3), "flashIni": round(a_salida(17.85), 3),
+    "plata": t("plata"), "colchon": t("colchón"), "flashFin": round(a_salida(25.8), 3), "flashIni": round(a_salida(17.40), 3),
     "seguroNoPaga": t("seguro", 28), "guardaditos": t("guardaditos"), "ahorros1": t("ahorros", 44), "difiero": t("difiero"),
     "dime": t("Dime"), "emergencia": t("emergencia"), "pausaIni": round(a_salida(62.15), 3), "pausaFin": round(a_salida(64.05), 3),
     "aliado1": t("aliado", 67), "ahorros2": t("ahorros", 68), "patrimonio1": t("patrimonio", 82), "razon1": t("razón", 86),
