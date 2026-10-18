@@ -6,3 +6,4 @@ data/
 .pytest_cache/
 # vídeo unido (96 MB, derivado de los 3 clips; se regenera con ffmpeg, ver video/DECISIONES.md)
 media/mi-video.mp4
+borrador_v1.mp4
