@@ -13,7 +13,7 @@ src, ts_path, out = sys.argv[1], sys.argv[2], sys.argv[3]
 rangos = [tuple(float(x) for x in r.split(":")) for r in sys.argv[4:]]
 os.makedirs(out, exist_ok=True)
 FPS = 30
-seg = json.loads(re.search(r"SEGMENTOS: Segmento\[\] = (\[.*?\]);", open(ts_path).read(), re.S).group(1))
+seg = json.loads(re.search(r"SEGMENTOS(?:: Segmento\[\])? = (\[.*?\]);", open(ts_path).read(), re.S).group(1))
 
 def a_origen(t):
     for s in seg:

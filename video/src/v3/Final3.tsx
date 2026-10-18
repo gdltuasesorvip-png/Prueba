@@ -22,7 +22,7 @@ const Icono: React.FC<{ red: Cuenta["red"] }> = ({ red }) =>
     </svg>
   );
 
-export const Final3: React.FC<{ marca: string; cuentas: Cuenta[] }> = ({ marca, cuentas }) => {
+export const Final3: React.FC<{ marca: string; cuentas: Cuenta[]; avatar?: string }> = ({ marca, cuentas, avatar = "v3/avatar.jpg" }) => {
   const f = useCurrentFrame();
   const g = ip(f, [0, 8], [1, 0]);
   const av = ip(f, [4, 16], [0, 1], backOut(1.8));
@@ -40,7 +40,7 @@ export const Final3: React.FC<{ marca: string; cuentas: Cuenta[] }> = ({ marca, 
         <AbsoluteFill>
           <div style={{ position: "absolute", left: 540 - 170, top: 420, width: 340, height: 340, scale: String(av) }}>
             <div style={{ position: "absolute", inset: -14, borderRadius: 999, background: `conic-gradient(from ${f * 5}deg, ${AZ.cian}, ${AZ.real}, ${AZ.electrico}, ${AZ.cian})`, boxShadow: `0 0 80px ${AZ.real}` }} />
-            <Img src={staticFile("v3/avatar.jpg")} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 999, objectFit: "cover", border: `8px solid ${AZ.noche}` }} />
+            <Img src={staticFile(avatar)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 999, objectFit: "cover", border: `8px solid ${AZ.noche}` }} />
           </div>
           <div style={{ position: "absolute", left: 0, right: 0, top: 820, textAlign: "center", opacity: nom, translate: `0 ${(1 - nom) * 30}px` }}>
             <div style={{ fontFamily: FUENTE, fontWeight: 900, fontSize: 80, color: "#fff", letterSpacing: -2 }}>{marca}</div>

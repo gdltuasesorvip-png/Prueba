@@ -5,18 +5,18 @@ import { AZ, DEGRADADO, FUENTE } from "./paleta";
 import { backOut, ip } from "./util";
 
 export type Modo = "video" | "claro" | "oscuro";
-export type Bloque3 = Bloque & { modo: Modo; y: number; oculto?: boolean };
+export type Bloque3 = Bloque & { modo: Modo; y: number; oculto?: boolean; pill?: "azul" | "hielo" };
 
-const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: number; salida: number }> = ({ p, modo, t, fps, salida }) => {
+const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: number; salida: number; pillTipo?: "azul" | "hielo" }> = ({ p, modo, t, fps, salida, pillTipo = "azul" }) => {
   const f = (t - p.inicio) * fps;
   const tam = Math.min(108, 820 / (0.62 * p.texto.length));
   const enVideo = modo === "video";
   const pill = ip(f, [0, 5], [0, 1], backOut(1.2));
-  const color = enVideo ? "#fff" : modo === "claro" ? AZ.real : AZ.cian;
+  const color = enVideo ? (pillTipo === "hielo" ? AZ.marino : "#fff") : modo === "claro" ? AZ.real : AZ.cian;
   return (
     <span style={{ position: "relative", display: "inline-block", padding: enVideo ? "4px 26px 10px" : 0, opacity: salida, filter: `blur(${(1 - salida) * 8}px)` }}>
       {enVideo ? (
-        <span style={{ position: "absolute", inset: 0, borderRadius: 28, background: DEGRADADO, transformOrigin: "left center", scale: `${pill} 1`, rotate: "-2deg", boxShadow: "0 14px 40px rgba(14,86,246,0.45)" }} />
+        <span style={{ position: "absolute", inset: 0, borderRadius: 28, background: pillTipo === "hielo" ? `linear-gradient(100deg, #ffffff, ${AZ.hielo})` : DEGRADADO, transformOrigin: "left center", scale: `${pill} 1`, rotate: pillTipo === "hielo" ? "2deg" : "-2deg", boxShadow: pillTipo === "hielo" ? "0 14px 40px rgba(4,11,31,0.35)" : "0 14px 40px rgba(14,86,246,0.45)" }} />
       ) : null}
       {Array.from(p.texto).map((c, i) => {
         const fl = f - i * 1.1;
@@ -47,14 +47,14 @@ const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: numbe
   );
 };
 
-const Fila: React.FC<{ palabras: Palabra[]; modo: Modo; t: number; fps: number; salida: number }> = ({ palabras, modo, t, fps, salida }) => {
+const Fila: React.FC<{ palabras: Palabra[]; modo: Modo; t: number; fps: number; salida: number; pillTipo?: "azul" | "hielo" }> = ({ palabras, modo, t, fps, salida, pillTipo }) => {
   if (!palabras.length) return null;
   const color = modo === "claro" ? AZ.marino : "#fff";
   return (
     <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: 14, alignItems: "baseline" }}>
       {palabras.map((p, i) => {
         if (t < p.inicio) return null;
-        if (p.destacada) return <PalabraDestacada key={i} p={p} modo={modo} t={t} fps={fps} salida={salida} />;
+        if (p.destacada) return <PalabraDestacada key={i} p={p} modo={modo} t={t} fps={fps} salida={salida} pillTipo={pillTipo} />;
         const f = (t - p.inicio) * fps;
         const prog = Math.min(ip(f, [0, 3], [0, 1]), salida);
         return (
@@ -99,7 +99,7 @@ export const Subs3: React.FC<{ bloques: Bloque3[] }> = ({ bloques }) => {
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       <div style={{ position: "absolute", left: 120, width: 840, top: b.y, translate: "0 -50%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", rowGap: 4 }}>
         {filas.map((fila, i) => (
-          <Fila key={i} palabras={fila} modo={b.modo} t={t} fps={fps} salida={salida} />
+          <Fila key={i} palabras={fila} modo={b.modo} t={t} fps={fps} salida={salida} pillTipo={b.pill} />
         ))}
       </div>
     </AbsoluteFill>
