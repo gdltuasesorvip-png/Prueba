@@ -63,8 +63,8 @@ def campo(rgb, fuerza, x_hint):
     cx = cv2.GaussianBlur(cx.reshape(-1, 1), (1, 0), sigmaX=1, sigmaY=40).ravel()
     an = cv2.GaussianBlur(an.reshape(-1, 1), (1, 0), sigmaX=1, sigmaY=40).ravel()
     # estabilidad temporal
-    if est.cx is not None:
-        cx = 0.7 * est.cx + 0.3 * cx; an = 0.7 * est.ancho + 0.3 * an
+    if est.cx is not None and abs(float(np.median(cx - est.cx))) < 80 and abs(float(np.median(an - est.ancho))) < 120:
+        cx = 0.7 * est.cx + 0.3 * cx; an = 0.7 * est.ancho + 0.3 * an  # sin saltos de plano: suaviza
     est.cx, est.ancho = cx, an
     # peso vertical: 0 en la cabeza (cara/pelo), sube desde el cuello
     cara_filas = np.where(((cara > 0.5) & obj).sum(axis=1) > 3)[0]

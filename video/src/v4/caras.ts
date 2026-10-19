@@ -2,7 +2,7 @@
 // durante todo el tiempo que el elemento está en pantalla (teniendo en cuenta el zoom de cámara).
 export type Rect = [number, number, number, number]; // x, y, ancho, alto (lienzo 1080x1920)
 export type Muestra = { t: number; c: number[][] };
-export type Cam = (t: number) => { s: number; x: number };
+export type Cam = (t: number) => { s: number; x: number; y?: number };
 
 const MARGEN = 36;
 const ORIGEN: [number, number] = [540, 864]; // transformOrigin de la cámara (50% 45%)
@@ -11,9 +11,9 @@ const cajasEn = (caras: Muestra[], a: number, b: number, cam?: Cam): number[][] 
   const out: number[][] = [];
   for (const m of caras) {
     if (m.t < a - 0.25 || m.t > b + 0.25) continue;
-    const { s, x } = cam ? cam(m.t) : { s: 1, x: 0 };
+    const { s, x, y = 0 } = cam ? cam(m.t) : { s: 1, x: 0 };
     for (const [x0, y0, x1, y1] of m.c) {
-      out.push([ORIGEN[0] + (x0 - ORIGEN[0]) * s + x - MARGEN, ORIGEN[1] + (y0 - ORIGEN[1]) * s - MARGEN, ORIGEN[0] + (x1 - ORIGEN[0]) * s + x + MARGEN, ORIGEN[1] + (y1 - ORIGEN[1]) * s + MARGEN]);
+      out.push([ORIGEN[0] + (x0 - ORIGEN[0]) * s + x - MARGEN, ORIGEN[1] + (y0 - ORIGEN[1]) * s + y - MARGEN, ORIGEN[0] + (x1 - ORIGEN[0]) * s + x + MARGEN, ORIGEN[1] + (y1 - ORIGEN[1]) * s + y + MARGEN]);
     }
   }
   return out;

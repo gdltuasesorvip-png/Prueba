@@ -200,3 +200,25 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
   con subtítulos grandes y legibles.
 - Foto de la pantalla final: boca cerrada, mirando a cámara, ojos abiertos (`video/scripts/mejor_foto.py`);
   archivo actual `video/public/marca/avatar.jpg`.
+
+### Adelgazar / estilizar (pedido de la clienta: "me veo muy cuadrada")
+- En los planos donde sale **de pie**, estilizar la silueta con `video/scripts/adelgazar.py`
+  (`--fuerza 0.10`, `--desde <s>` para no tocar los planos sentada). Afecta solo del cuello hacia abajo y
+  únicamente al ancho de su cuerpo: la cara, la TV y el fondo no se deforman. Debe ser sutil y natural.
+- Orden del preproceso: quitar marca de agua (delogo) → adelgazar → belleza.
+
+### Vídeos largos explicativos (aprendido en el vídeo de maternidad, ~2 min)
+- **Ángulos distintos**: cada frase (~2,2 s o más) cambia de plano: general, medio (×1,34), americano inclinado
+  (×1,12, −1,2°), primer plano (×1,62, +1,4°). La cámara se centra en la cara detectada y entra con un
+  **barrido (whip)** de 6 fotogramas con desenfoque.
+- **Foco en la TV** cuando la diapositiva dice algo clave (zoom ×1,4 a la pantalla).
+- **"La cuenta del embarazo"**: un contador fijo que va sumando los gastos con pulso, brillo y ding, junto a
+  tarjetas blancas por cada gasto (icono + precio que cuenta hacia arriba).
+- Escenas a pantalla completa para los conceptos grandes (**iceberg** "lo que ves / lo que no ves",
+  **CON vs SIN seguro** con barras), siempre con su cara en un círculo (PIP) para no perderla.
+- Elementos que se "usan": calculadora que teclea los números, caja de comentario que escribe la palabra clave,
+  botón de DM con avión de papel, sello "PREPAGADO ✓", anillo 100 % "CUBIERTO".
+- Transiciones nuevas: **cristal esmerilado** que barre, **ola** de agua (entrada/salida del iceberg),
+  **mosaico** de baldosas que giran, **chispas mágicas** con barrido de luz ("ahora viene la magia").
+- Gancho sentada: texto apilado contorno/relleno y un **"NO" gigante detrás de ella**.
+- Sin música (la clienta prefiere solo voz + efectos de sonido).
