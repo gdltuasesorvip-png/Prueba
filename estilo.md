@@ -179,3 +179,13 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
   5 fotogramas y whoosh.
 - Pausa dramática: duotono, zoom lento y burbuja de "escribiendo…".
 - Cierre con encuesta animada ("¿Y tú qué prefieres?") y móvil con conversación de DM.
+
+### Vídeos de historia / b-roll (aprendido en el vídeo de la moto)
+- **Cámara rápida** en los tramos sin voz (×1,6–2,4) con líneas de velocidad radiales; la voz siempre a tiempo real.
+- **Base musical propia** (`video/scripts/musica.py`, 104 BPM, La menor): 0,55–0,62 en b-roll, 0,10–0,14 bajo la voz.
+- **Contorno neón** cian alrededor de la persona (recorte + drop-shadow) al presentarla.
+- **HUD de cámara** (REC, esquinas, velocímetro, minimapa con ruta a DLB) mientras se desplaza.
+- Texto apilado contorno/relleno ("CASI / ME / MATO") detrás de la persona en el gancho.
+- Transiciones nuevas: polaroid que sale volando, giro de 180°, paneles verticales, zoom a través de la puerta,
+  cristal roto con fragmentos, rayos de luz, pin de ubicación que cae, brochazo azul para el cierre.
+- Cierre con pregunta directa al público ("¿Andas en moto?") antes de la pantalla final.
