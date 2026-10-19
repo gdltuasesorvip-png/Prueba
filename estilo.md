@@ -166,3 +166,16 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
   Instagram **@tuagentedesegurosdlb** · TikTok **@tuasesorintegralvip**.
 - Título: "Tu asesor integral VIP" (tomado del usuario de TikTok) y subtítulo "seguros de salud · maternidad"
   **[SUPOSICIÓN: confirmar nombre de marca]**.
+
+### Vídeos de diálogo o con edición previa (aprendido en el vídeo "Mito vs. realidad")
+- Si el bruto trae subtítulos quemados, se borran con `video/scripts/quitar_subtitulos.py` (inpainting) y los
+  subtítulos nuevos se colocan en esa misma franja (y 1215 sobre vídeo) para tapar cualquier resto.
+- Retoque de belleza en todo el vídeo con `video/scripts/belleza.py` (piel suavizada, textura 35 %, luz +4 %).
+- Abrir con un **gancho en frío**: la frase más polémica (1,5 s) en grande, delante de la persona, con lluvia de
+  elementos y sello "¿MITO?", y transición de **rebobinado** ("◀◀ UNOS MINUTOS ANTES") al inicio real.
+- Tramos en blanco y negro del bruto → duotono azul a pantalla completa (sin franjas negras).
+- Subtítulos por hablante: asesoría con píldora de degradado azul, cliente con píldora blanco-hielo.
+- **Golpe de impacto** en cada cambio de quien habla: zoom +12 % que cae en 8 fotogramas, temblor, destello de
+  5 fotogramas y whoosh.
+- Pausa dramática: duotono, zoom lento y burbuja de "escribiendo…".
+- Cierre con encuesta animada ("¿Y tú qué prefieres?") y móvil con conversación de DM.
