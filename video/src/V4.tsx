@@ -262,7 +262,7 @@ const EscenaCTA: React.FC = () => {
 };
 
 // Volumen de la música según el tramo.
-const volMusica = (fr: number) => {
+export const volMusica = (fr: number) => {
   const t = fr / fps;
   return interpolate(t, [0, T.ganchoFin - 0.1, T.ganchoFin + 0.1, T.casco - 0.3, T.casco + 0.2, T.aqui + 3.6, T.camina, T.dialogo - 0.2, T.dialogo + 0.5, DURACION_VOZ - 0.3, DURACION_VOZ + 0.3, DURACION_TOTAL - 0.8, DURACION_TOTAL], [0.18, 0.18, 0.62, 0.62, 0.14, 0.14, 0.55, 0.55, 0.1, 0.1, 0.55, 0.55, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 };
@@ -278,7 +278,6 @@ export const V4: React.FC = () => {
   const sfx = (n: string, t: number, v = 0.35) => <Sequence key={`${n}${t}`} from={Math.max(0, F(t))} layout="none"><Audio src={staticFile(`sfx/${n}.wav`)} volume={v} /></Sequence>;
   return (
     <AbsoluteFill style={{ background: AZ.noche }}>
-      <Audio src={staticFile("v4/musica.wav")} volume={volMusica} />
       <Camara>
         <Video4 />
         <GradoAzul fuerza={0.7} />
