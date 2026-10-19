@@ -222,3 +222,20 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
   **mosaico** de baldosas que giran, **chispas mágicas** con barrido de luz ("ahora viene la magia").
 - Gancho sentada: texto apilado contorno/relleno y un **"NO" gigante detrás de ella**.
 - Sin música (la clienta prefiere solo voz + efectos de sonido).
+
+### Testimonios / entrevistas (aprendido en el vídeo de Luisa)
+- **Gancho en frío** con la última pregunta y la respuesta más fuerte ("¿Qué es no tener un seguro?" — "Miedo."),
+  la palabra gigante DETRÁS de la persona, y **rebobinado VHS** (◀◀ REW + contador que retrocede) al inicio real.
+- Cada pregunta de Gabi abre un **capítulo** a pantalla completa ("PREGUNTA 2 DE 4"), cada uno con una entrada
+  distinta: corte diagonal, iris, puertas, zoom.
+- Píldora azul para Gabi (detrás de cámara) y píldora blanco-hielo para la clienta; chips de presentación
+  ("GABI · TU ASESORA DLB", "LUISA · CLIENTA CON PÓLIZA").
+- Lo que cuenta la clienta se convierte en **expediente médico** animado (líneas que se suman) con **sello**
+  "100% CUBIERTO"; los consejos en pegatinas ✓ y listas que se van marcando.
+- Volumen: igualar voces con `dynaudnorm` (la clienta suele quedar mucho más baja que quien graba).
+- Cortes de pausas por huecos entre palabras + energía (umbral −34,5 dB); no usar un umbral fijo alto o se
+  corta la voz baja.
+- En primeros planos donde la cara llena la pantalla, el texto gigante detrás solo funciona si asoma por arriba y
+  a los lados (cámara sin zoom fuerte); si no, ponerlo delante, en el pecho, nunca sobre la cara.
+- Sin anillos, ondas ni destellos centrados en la cara.
+- Cierre: "No dejes que el MIEDO decida por ti" + "Escríbeme y te asesoro".
