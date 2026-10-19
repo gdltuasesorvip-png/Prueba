@@ -147,7 +147,7 @@ const Apilado: React.FC = () => {
   if (fase === 2) {
     const e = ip(t - T.no, [0, 0.3], [0, 1], backOut(2.4));
     return (
-      <div style={{ position: "absolute", right: 40, top: 150, fontFamily: FUENTE, fontWeight: 900, fontSize: 640, lineHeight: 0.85, letterSpacing: -30, color: AZ.cian, scale: String(0.3 + 0.7 * e), opacity: Math.min(1, e * 2), textShadow: `0 0 80px ${AZ.real}`, transformOrigin: "70% 60%" }}>
+      <div style={{ position: "absolute", right: 30, top: 330, fontFamily: FUENTE, fontWeight: 900, fontSize: 640, lineHeight: 0.85, letterSpacing: -30, color: AZ.cian, scale: String(0.3 + 0.7 * e), opacity: Math.min(1, e * 2), textShadow: `0 0 80px ${AZ.real}`, transformOrigin: "70% 60%" }}>
         NO
       </div>
     );
@@ -434,7 +434,7 @@ const Iceberg: React.FC = () => {
   };
   const punta = ip(f, [6, 20], [0, 1], backOut(1.6));
   const fondo = ip(t, [T.siHay, T.siHay + 0.8], [0, 1], easeOut);
-  const pan = ip(t, [T.terapia - 0.4, T.terapia + 0.4], [0, -120], easeOut);
+  const pan = ip(t, [T.terapia - 0.4, T.terapia + 0.4], [0, -40], easeOut);
   const item = (en: number) => ip(t, [en, en + 0.35], [0, 1], backOut(2));
   const misterio = t >= T.enCuanto;
   const loco = misterio ? (t >= T.c11300b ? `11.300 + ¿${fmt(1000 + ((f * 7919) % 9000))}?` : "¿…?") : "";
@@ -456,7 +456,7 @@ const Iceberg: React.FC = () => {
           <path d={ola(2)} fill="none" stroke={AZ.cian} strokeWidth="5" />
         </svg>
         <Burbujas seed={5} />
-        <div style={{ position: "absolute", left: 0, right: 0, top: 90, textAlign: "center", opacity: punta }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 100, textAlign: "center", opacity: punta }}>
           <div style={{ fontFamily: MONO, fontSize: 26, letterSpacing: 6, color: AZ.cielo }}>LO QUE VES</div>
           <div style={{ fontFamily: FUENTE, fontWeight: 900, fontSize: 120, color: "#fff", letterSpacing: -4, lineHeight: 1 }}>11.300 $</div>
         </div>
@@ -481,7 +481,6 @@ const Iceberg: React.FC = () => {
           </div>
         ) : null}
       </AbsoluteFill>
-      <Pip5 a={ICEBERG[0]} b={ICEBERG[1]} x={790} y={420} size={230} />
     </AbsoluteFill>
   );
 };
@@ -530,7 +529,7 @@ const Compara: React.FC = () => {
           <div style={{ position: "absolute", left: 120, top: 560 }}><Estrellas n={5} size={56} /></div>
         </Sequence>
       ) : null}
-      <Pip5 a={COMPARA[0]} b={COMPARA[1]} x={800} y={420} size={210} />
+      <Pip5 a={COMPARA[0]} b={COMPARA[1]} x={836} y={36} size={196} />
       <span style={{ display: "none" }}>{f}</span>
     </AbsoluteFill>
   );
