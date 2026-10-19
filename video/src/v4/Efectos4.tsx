@@ -90,14 +90,14 @@ export const Neon: React.FC<{ base: number; en: number; dur: number; color?: str
 };
 
 // Grietas de cristal desde un punto de impacto.
-export const Grietas: React.FC<{ cx?: number; cy?: number; seed?: number }> = ({ cx = 640, cy = 760, seed = 1 }) => {
+export const Grietas: React.FC<{ cx?: number; cy?: number; seed?: number; largo?: number }> = ({ cx = 640, cy = 760, seed = 1, largo = 1160 }) => {
   const f = useCurrentFrame();
   const d = ip(f, [0, 5], [0, 1], easeOut);
   const ramas = Array.from({ length: 13 }).map((_, i) => {
     const a = (i / 13) * Math.PI * 2 + rnd(seed + i) * 0.4;
     let x = cx, y = cy;
     const pts = [`${x},${y}`];
-    const L = 260 + rnd(seed * 3 + i) * 900;
+    const L = largo * (0.35 + rnd(seed * 3 + i) * 0.65);
     for (let k = 1; k <= 6; k++) {
       const r = (L / 6) * k;
       x = cx + Math.cos(a + (rnd(i * 10 + k + seed) - 0.5) * 0.3) * r;

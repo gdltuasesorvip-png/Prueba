@@ -189,7 +189,7 @@ export const DLB2: React.FC = () => {
         <Sequence name="Pantalla final" from={Math.round((DURACION_VOZ + HUECO_FINAL) * fps)} durationInFrames={Math.round(PANTALLA_FINAL * fps)}>
           <Final3
             marca="Tu asesor integral VIP"
-            avatar="dlb2/avatar.jpg"
+            avatar="marca/avatar.jpg"
             cuentas={[
               { red: "instagram", usuario: "@tuagentedesegurosdlb" },
               { red: "tiktok", usuario: "@tuasesorintegralvip" },

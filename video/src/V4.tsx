@@ -11,28 +11,19 @@ import { Subs3, type Bloque3 } from "./v3/Subs3";
 import { backOut, easeIn, easeOut, ip } from "./v3/util";
 import { Brochazo, Fragmentos, Grietas, HUD, LineasVelocidad, Neon, Paneles, PinCae, Polaroid, Rayos } from "./v4/Efectos4";
 import { Montaje4 } from "./v4/Montaje4";
+import { CARAS } from "./datos/caras_v4";
+import { elegir, type Rect } from "./v4/caras";
 
 export const calcularDuracionV4 = () => Math.ceil(DURACION_TOTAL * 30);
 const fps = 30;
 const F = (s: number) => Math.round(s * fps);
 const rapido = (t: number) => SEGMENTOS.some((s) => s.vel > 1.2 && t >= s.out0 && t < s.out0 + s.frames / fps);
-const IMPACTO = [T.mato, T.tumba];
+const IMPACTO = [T.tumba];
 
-const BLOQUES3: Bloque3[] = BLOQUES.map((b) => ({
-  palabras: b.palabras,
-  inicio: b.inicio,
-  fin: b.fin,
-  fondo: "busto",
-  modo: "video",
-  y: 1390,
-  pill: b.hablante === "cliente" ? "hielo" : "azul",
-}));
 const CORTES = BLOQUES.filter((b) => b.tramo === "dialogo").map((b, k) => ({ inicio: b.inicio, fin: b.fin, k }));
 const ENC = [1.0, 1.14, 1.06, 1.22];
 
-const Camara: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const f = useCurrentFrame();
-  const t = f / fps;
+export const camara = (t: number, f = Math.round(t * fps)) => {
   let s = 1, r = 0, x = 0, blur = 0;
   const c = CORTES.find((cc) => t >= cc.inicio && t < cc.fin + 0.07);
   if (c && !(t >= T.hola - 0.1 && t < T.hola + 1.8)) {
@@ -40,14 +31,12 @@ const Camara: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     s = ENC[c.k % ENC.length] + 0.03 * ip(fc, [0, 90], [0, 1]) + ip(fc, [0, 6], [0.05, 0], easeOut);
   }
   if (t < T.ganchoFin) s = 1.04 + 0.08 * ip(t, [0, T.ganchoFin], [0, 1]);
-  // giro entre la llegada y el aparcamiento
   const fs = (t - T.aparca) * fps;
   if (fs > -7 && fs < 7) {
     r = fs < 0 ? ip(fs, [-7, 0], [0, 180], easeIn) : ip(fs, [0, 7], [-180, 0], easeOut);
     blur = Math.max(blur, 14 - Math.abs(fs) * 2);
     s *= 1 + 0.25 * (1 - Math.abs(fs) / 7);
   }
-  // zoom a través de la puerta
   const fp = (t - T.dialogo) * fps;
   if (fp > -12 && fp < 0) {
     s *= ip(fp, [-12, 0], [1, 2.8], easeIn);
@@ -63,6 +52,14 @@ const Camara: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       s += ip(fi, [0, 10], [0.1, 0], easeOut);
     }
   }
+  return { s, r, x, blur };
+};
+const CAM = (t: number) => camara(t);
+const libre = (a: number, b: number, cands: Rect[]) => elegir(CARAS, a, b, cands, CAM);
+
+const Camara: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const f = useCurrentFrame();
+  const { s, r, x, blur } = camara(f / fps, f);
   return (
     <AbsoluteFill style={{ background: AZ.noche, overflow: "hidden" }}>
       <AbsoluteFill style={{ scale: String(s), rotate: `${r}deg`, translate: `${x}px 0`, transformOrigin: "50% 45%", filter: blur > 0.3 ? `blur(${blur}px)` : undefined }}>{children}</AbsoluteFill>
@@ -156,6 +153,22 @@ const Maquina: React.FC<{ texto: string; desde: number; cps?: number; style?: Re
   return <div style={{ fontFamily: MONO, color: "#fff", textShadow: "0 3px 14px rgba(0,0,0,0.7)", ...style }}>{texto.slice(0, n)}<span style={{ opacity: f % 14 < 7 ? 1 : 0 }}>▌</span></div>;
 };
 
+// Posiciones elegidas para no tapar rostros
+const P = {
+  maq1: libre(T.llegada + 0.3, T.aparca - 0.2, [[80, 740, 920, 90], [80, 1100, 920, 90], [80, 520, 920, 90], [80, 1450, 920, 90]]),
+  maq2: libre(T.aparca + 0.6, T.casco - 0.2, [[80, 740, 920, 90], [80, 1100, 920, 90], [80, 520, 920, 90], [80, 1450, 920, 90]]),
+  chipUf: libre(T.uf, T.uf + 2.2, [[60, 170, 760, 72], [60, 1730, 760, 72], [260, 170, 760, 72], [260, 1730, 760, 72]]),
+  pin: libre(T.claro + 0.45, T.vamos + 0.9, [[700, 240, 300, 430], [720, 640, 300, 430], [60, 240, 300, 430], [720, 1040, 300, 430], [60, 1040, 300, 430]]),
+  chipGab: libre(T.hola + 0.9, T.hola + 3.4, [[60, 170, 660, 72], [60, 1730, 660, 72], [360, 170, 660, 72]]),
+  burbuja: libre(T.cuentame, T.moto - 0.1, [[610, 300, 420, 130], [60, 300, 420, 130], [610, 1080, 420, 130], [60, 1080, 420, 130], [330, 170, 420, 130]]),
+  moto: libre(T.moto - 0.05, T.tumba + 0.4, [[60, 320, 280, 200], [740, 320, 280, 200], [60, 1060, 280, 200], [740, 1060, 280, 200], [400, 170, 280, 200]]),
+  carro: libre(T.carro - 0.25, T.tumba + 0.2, [[0, 560, 1080, 200], [0, 1160, 1080, 200], [0, 250, 1080, 200], [0, 1500, 1080, 200]]),
+  grieta: libre(T.tumba, T.tumba + 0.9, [[580, 220, 420, 420], [80, 220, 420, 420], [580, 1180, 420, 420], [80, 1180, 420, 420]]),
+  nada: libre(T.nada - 0.1, T.asesoria - 0.05, [[290, 300, 500, 90], [290, 170, 500, 90], [290, 1730, 500, 90], [290, 1080, 500, 90]]),
+  escudo: libre(T.asesoria - 0.05, T.producto, [[826, 300, 184, 184], [70, 300, 184, 184], [826, 1080, 184, 184], [70, 1080, 184, 184]]),
+  buscador: libre(T.producto - 0.1, DURACION_VOZ + 0.1, [[70, 300, 940, 270], [70, 160, 940, 270], [70, 1080, 940, 270], [70, 1500, 940, 270]]),
+};
+
 const Momentos: React.FC = () => {
   const f = useCurrentFrame();
   const t = f / fps;
@@ -166,47 +179,46 @@ const Momentos: React.FC = () => {
       <Sequence from={F(T.llegada)} durationInFrames={F(T.casco - T.llegada)} layout="none">
         <HUD duracion={F(T.casco - T.llegada)} />
       </Sequence>
-      {t >= T.llegada + 0.3 && t < T.aparca - 0.2 ? <Maquina texto="Un día cualquiera en moto…" desde={T.llegada + 0.3} style={{ position: "absolute", left: 80, top: 760, fontSize: 46 }} /> : null}
-      {t >= T.aparca + 0.6 && t < T.casco - 0.2 ? <Maquina texto="…hasta que casi pasa lo peor." desde={T.aparca + 0.6} style={{ position: "absolute", left: 80, top: 760, fontSize: 46 }} /> : null}
-      <Aparece en={T.uf} hasta={T.uf + 2.2} style={{ left: 60, top: 300 }}>
+      {t >= T.llegada + 0.3 && t < T.aparca - 0.2 ? <Maquina texto="Un día cualquiera en moto…" desde={T.llegada + 0.3} style={{ position: "absolute", left: P.maq1[0], top: P.maq1[1], fontSize: 46 }} /> : null}
+      {t >= T.aparca + 0.6 && t < T.casco - 0.2 ? <Maquina texto="…hasta que casi pasa lo peor." desde={T.aparca + 0.6} style={{ position: "absolute", left: P.maq2[0], top: P.maq2[1], fontSize: 46 }} /> : null}
+      <Aparece en={T.uf} hasta={T.uf + 2.2} style={{ left: P.chipUf[0], top: P.chipUf[1] }}>
         <Chip>LLEGÓ EN MOTO · Y CASI NO LA CUENTA</Chip>
       </Aparece>
-      <Aparece en={T.claro + 0.45} hasta={T.vamos + 0.9} style={{ left: 540 - 150, top: 250 }}>
+      <Aparece en={T.claro + 0.45} hasta={T.vamos + 0.9} style={{ left: P.pin[0], top: P.pin[1] }}>
         <PinCae etiqueta="DLB · Asesoría" />
       </Aparece>
-      <Aparece en={T.hola + 0.9} hasta={T.hola + 3.4} style={{ left: 60, top: 300 }}>
+      <Aparece en={T.hola + 0.9} hasta={T.hola + 3.4} style={{ left: P.chipGab[0], top: P.chipGab[1] }}>
         <Chip>GABRIELA · ASESORÍA DLB</Chip>
       </Aparece>
-      <Aparece en={T.cuentame} hasta={T.moto - 0.1} style={{ right: 70, top: 330 }}>
+      <Aparece en={T.cuentame} hasta={T.moto - 0.1} style={{ left: P.burbuja[0], top: P.burbuja[1] }}>
         <div style={{ position: "relative", background: "#fff", color: AZ.marino, fontFamily: FUENTE, fontWeight: 900, fontSize: 54, padding: "20px 34px", borderRadius: 40 }}>
           ¿Qué te pasó?
           <div style={{ position: "absolute", left: 60, bottom: -26, width: 0, height: 0, borderLeft: "20px solid transparent", borderRight: "20px solid transparent", borderTop: "30px solid #fff" }} />
         </div>
       </Aparece>
-      <Aparece en={T.moto - 0.05} hasta={T.tumba + 0.4} style={{ left: 60, top: 320 }}>
+      <Aparece en={T.moto - 0.05} hasta={T.tumba + 0.4} style={{ left: P.moto[0], top: P.moto[1] }}>
         <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 34, padding: "20px 26px", boxShadow: "0 20px 50px rgba(4,11,31,0.45)" }}>
           <Moto size={220} />
         </div>
       </Aparece>
       {t >= T.carro - 0.25 && t < T.tumba + 0.2 ? (
-        <div style={{ position: "absolute", left: carroX, top: 560, filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))" }}>
+        <div style={{ position: "absolute", left: carroX, top: P.carro[1], filter: "drop-shadow(0 20px 30px rgba(0,0,0,0.5))" }}>
           <Carro size={380} />
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{ position: "absolute", right: 380 + i * 30, top: 30 + i * 22, width: 160 - i * 20, height: 8, borderRadius: 9, background: "#fff", opacity: 0.6 }} />
           ))}
         </div>
       ) : null}
-      <Sequence from={F(T.mato)} durationInFrames={F(1.1)} layout="none"><Grietas cx={560} cy={700} seed={3} /></Sequence>
-      <Sequence from={F(T.tumba)} durationInFrames={F(0.9)} layout="none"><Grietas cx={640} cy={760} seed={9} /></Sequence>
+      <Sequence from={F(T.tumba)} durationInFrames={F(0.9)} layout="none"><Grietas cx={P.grieta[0] + 210} cy={P.grieta[1] + 210} seed={9} largo={360} /></Sequence>
       <Sequence from={F(T.tumba + 0.9)} durationInFrames={F(0.6)} layout="none"><Fragmentos duracion={F(0.6)} /></Sequence>
       <Sequence from={F(T.protegio - 0.1)} durationInFrames={F(2.4)} layout="none"><Rayos duracion={F(2.4)} /></Sequence>
-      <Aparece en={T.nada - 0.1} hasta={T.asesoria - 0.05} style={{ left: 0, right: 0, top: 330, display: "flex", justifyContent: "center" }}>
+      <Aparece en={T.nada - 0.1} hasta={T.asesoria - 0.05} style={{ left: P.nada[0], top: P.nada[1] }}>
         <div style={{ background: DEGRADADO, color: "#fff", fontFamily: FUENTE, fontWeight: 900, fontSize: 56, padding: "12px 36px", borderRadius: 24, rotate: "-3deg" }}>✓ como si nada</div>
       </Aparece>
-      <Aparece en={T.asesoria - 0.05} hasta={T.producto} style={{ right: 70, top: 300 }}>
+      <Aparece en={T.asesoria - 0.05} hasta={T.producto} style={{ left: P.escudo[0], top: P.escudo[1] }}>
         <div style={{ background: "#fff", borderRadius: 999, padding: 22 }}><Escudo desde={0} size={140} /></div>
       </Aparece>
-      <Aparece en={T.producto - 0.1} hasta={DURACION_VOZ + 0.1} style={{ left: 70, right: 70, top: 300 }}>
+      <Aparece en={T.producto - 0.1} hasta={DURACION_VOZ + 0.1} style={{ left: P.buscador[0], width: P.buscador[2], top: P.buscador[1] }}>
         <div style={{ background: "rgba(255,255,255,0.96)", borderRadius: 40, padding: "26px 30px", boxShadow: "0 30px 80px rgba(4,11,31,0.5)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18, background: AZ.niebla, borderRadius: 99, padding: "16px 26px" }}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={AZ.real} strokeWidth="2.6" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>
@@ -255,6 +267,11 @@ const volMusica = (fr: number) => {
   return interpolate(t, [0, T.ganchoFin - 0.1, T.ganchoFin + 0.1, T.casco - 0.3, T.casco + 0.2, T.aqui + 3.6, T.camina, T.dialogo - 0.2, T.dialogo + 0.5, DURACION_VOZ - 0.3, DURACION_VOZ + 0.3, DURACION_TOTAL - 0.8, DURACION_TOTAL], [0.18, 0.18, 0.62, 0.62, 0.14, 0.14, 0.55, 0.55, 0.1, 0.1, 0.55, 0.55, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 };
 
+const BLOQUES3: Bloque3[] = BLOQUES.map((b) => {
+  const r = elegir(CARAS, b.inicio, b.fin, [1390, 1560, 1690, 1250, 1100].map((y) => [100, y - 105, 880, 210] as Rect), (t) => camara(t));
+  return { palabras: b.palabras, inicio: b.inicio, fin: b.fin, fondo: "busto", modo: "video", y: r[1] + 105, pill: b.hablante === "cliente" ? "hielo" : "azul" };
+});
+
 export const V4: React.FC = () => {
   const { fps: FPS } = useVideoConfig();
   const finVoz = Math.ceil(DURACION_VOZ * FPS);
@@ -271,13 +288,12 @@ export const V4: React.FC = () => {
       <Sequence from={F(T.ganchoFin) - 1} durationInFrames={20} layout="none"><Polaroid src="v4/polaroid.jpg" duracion={20} /></Sequence>
       <Sequence from={F(T.camina + (T.pasillo - T.camina)) - 8} durationInFrames={16} layout="none"><Paneles duracion={16} /></Sequence>
       <Sequence from={F(T.dialogo) - 2} durationInFrames={7} layout="none"><Flash duracion={7} /></Sequence>
-      <Sequence from={F(T.mato)} durationInFrames={6} layout="none"><Flash duracion={6} /></Sequence>
       <Sequence from={F(T.tumba)} durationInFrames={6} layout="none"><Flash duracion={6} /></Sequence>
       <Sequence from={F(T.tumba)} durationInFrames={26} layout="none"><Destello duracion={26} seed={17} /></Sequence>
       <Sequence name="Subtítulos" from={0} durationInFrames={finVoz}><Subs3 bloques={BLOQUES3} /></Sequence>
       <Sequence name="CTA" from={finVoz} durationInFrames={F(CTA)}><EscenaCTA /></Sequence>
       <Sequence name="Pantalla final" from={finVoz + F(CTA)} durationInFrames={F(PANTALLA_FINAL)}>
-        <Final3 marca="Tu asesor integral VIP" avatar="dlb2/avatar.jpg" cuentas={[{ red: "instagram", usuario: "@tuagentedesegurosdlb" }, { red: "tiktok", usuario: "@tuasesorintegralvip" }]} />
+        <Final3 marca="Tu asesor integral VIP" avatar="marca/avatar.jpg" cuentas={[{ red: "instagram", usuario: "@tuagentedesegurosdlb" }, { red: "tiktok", usuario: "@tuasesorintegralvip" }]} />
       </Sequence>
       <div style={{ position: "absolute", left: 0, top: 0, height: 10, width: `${Math.min(1, useCurrentFrame() / F(DURACION_VOZ)) * 100}%`, background: DEGRADADO }} />
       <Grano opacidad={0.05} />

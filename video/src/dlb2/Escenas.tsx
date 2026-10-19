@@ -262,7 +262,7 @@ export const DM: React.FC<PropsE & { usuario: string }> = ({ anclas, offsetFrame
       <div style={{ position: "absolute", left: 540 - 290, top: 420, width: 580, height: 900, borderRadius: 70, background: AZ.noche, boxShadow: `0 0 0 14px #0b1430, 0 40px 120px rgba(0,0,0,0.6), 0 0 90px ${AZ.real}55`, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "50px 30px 22px", borderBottom: "1.5px solid rgba(255,255,255,0.1)" }}>
           <div style={{ width: 70, height: 70, borderRadius: 99, padding: 4, background: `conic-gradient(from ${f * 4}deg, ${AZ.cian}, ${AZ.real}, ${AZ.cian})` }}>
-            <Img src={staticFile("dlb2/avatar.jpg")} style={{ width: "100%", height: "100%", borderRadius: 99, objectFit: "cover" }} />
+            <Img src={staticFile("marca/avatar.jpg")} style={{ width: "100%", height: "100%", borderRadius: 99, objectFit: "cover" }} />
           </div>
           <div style={{ fontFamily: FUENTE, color: "#fff" }}>
             <div style={{ fontWeight: 900, fontSize: 30 }}>{usuario}</div>

@@ -3,6 +3,13 @@ import json, sys, re
 WORDS, SIL, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 FPS = 30
 words = [dict(w, w=w["word"].strip()) for w in json.load(open(WORDS))["words"]]
+# Toma 2 (se quita el casco y habla a cámara): palabras transcritas aparte, con sus textos corregidos
+TOMA2 = sys.argv[4] if len(sys.argv) > 4 else None
+if TOMA2:
+    words = [w for w in words if not (21.7 <= w["start"] < 42.3)]
+    fix = {"Verdad,": "¿Verdad?", "claro,": "¡Claro,", "aquí,": "aquí!", "vamos.": "¡Vamos!"}
+    extra = [dict(w, w=fix.get(w["word"].strip(), w["word"].strip())) for w in json.load(open(TOMA2)) if w["start"] > 26]
+    words = sorted(words + extra, key=lambda w: w["start"])
 sil = [tuple(map(float, l.split()[:2])) for l in open(SIL) if float(l.split()[2]) > 0.30]
 
 # (src0, src1, velocidad, audio, etiqueta)
@@ -10,9 +17,10 @@ TRAMOS = [
     (19.42, 20.80, 1.0, True, "gancho"),      # "casi me mato"
     (1.00, 6.55, 2.2, False, "llegada"),      # entra en moto (clip 1)
     (6.62, 15.40, 2.0, False, "aparca"),      # se acerca y aparca (clip 2)
-    (15.40, 17.60, 1.7, False, "casco0"),     # se pelea con el casco (acelerado)
-    (17.60, 22.10, 1.0, True, "casco"),       # "¡Uf! Gracias a Dios, casi me mato."
-    (34.95, 38.60, 1.0, True, "aqui"),        # "¿Verdad? ¡Claro, es aquí! ¡Vamos!"
+    (25.00, 27.75, 1.8, False, "casco0"),     # toma 2: se quita el casco (acelerado)
+    (27.75, 31.55, 1.0, True, "casco"),       # "Uff, casi me mato, gracias a Dios que me protegió."
+    (31.55, 34.95, 2.6, False, "puente"),     # sigue con el casco en la mano (acelerado)
+    (34.95, 38.60, 1.0, True, "aqui"),        # "¿Verdad? ¡Claro, aquí! ¡Vamos!"
     (38.60, 42.25, 2.4, False, "camina"),
     (42.30, 46.05, 2.0, False, "pasillo"),    # clip 4
     (46.10, 48.15, 1.6, False, "puerta"),     # clip 5: abre la puerta
@@ -54,7 +62,7 @@ def tramo_de(t):
 ASESORIA = [(48.0, 49.3), (50.45, 53.57), (55.3, 56.5)]
 def hablante(t): return "asesoria" if any(a <= t < b for a, b in ASESORIA) else "cliente"
 
-CLAVE = set("mato dios aquí vamos adelante gaby estás recibirte atenderme pasó moto carro tumba gabriela protegió nada asesoría producto conviene accidentes".split())
+CLAVE = set("uff verdad claro protegió mato dios aquí vamos adelante gaby estás recibirte atenderme pasó moto carro tumba gabriela protegió nada asesoría producto conviene accidentes".split())
 def limpio(x): return re.sub(r"[¿?¡!.,…]", "", x).lower()
 
 usadas = [w for w in words if tramo_de(w["start"]) in ("casco", "aqui", "dialogo") and w["start"] > 17.0]
@@ -91,9 +99,9 @@ ini = {s["tramo"]: s["out0"] for s in reversed(segs)}
 fin = {}
 for s in segs: fin[s["tramo"]] = round(s["out0"] + s["frames"] / FPS, 3)
 T = {
-    "ganchoFin": fin["gancho"], "llegada": ini["llegada"], "aparca": ini["aparca"], "casco0": ini["casco0"], "casco": ini["casco"], "aqui": ini["aqui"],
+    "ganchoFin": fin["gancho"], "llegada": ini["llegada"], "aparca": ini["aparca"], "casco0": ini["casco0"], "casco": ini["casco"], "puente": ini["puente"], "aqui": ini["aqui"],
     "camina": ini["camina"], "pasillo": ini["pasillo"], "puerta": ini["puerta"], "dialogo": ini["dialogo"],
-    "uf": t("¡Uf!", 17), "mato": t("mato.", 19.9, "casco"), "claro": t("¡Claro,", 36), "vamos": t("¡Vamos!", 37),
+    "uf": t("Uff,", 27), "mato": t("mato,", 29, "casco"), "protegio0": t("protegió.", 30.5, "casco"), "verdad": t("¿Verdad?", 35), "claro": t("¡Claro,", 36), "vamos": t("¡Vamos!", 37),
     "adelante": t("¡Adelante,", 48), "hola": t("¡Hola,", 49.5), "cuentame": t("Cuéntame,", 55), "moto": t("moto", 58),
     "carro": t("carro", 59), "tumba": t("tumba,", 59.5), "gabriela": t("Gabriela.", 60), "protegio": t("protegió", 62),
     "nada": t("nada.", 64.5), "asesoria": t("asesoría,", 65.4), "producto": t("producto", 67.7), "accidentes": t("accidentes", 69.4),

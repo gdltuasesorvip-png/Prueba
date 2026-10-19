@@ -189,3 +189,14 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
 - Transiciones nuevas: polaroid que sale volando, giro de 180°, paneles verticales, zoom a través de la puerta,
   cristal roto con fragmentos, rayos de luz, pin de ubicación que cae, brochazo azul para el cierre.
 - Cierre con pregunta directa al público ("¿Andas en moto?") antes de la pantalla final.
+
+### Regla de oro: NUNCA tapar rostros (pedido explícito del cliente)
+- Ningún texto, sticker, pin, icono, grieta ni tarjeta puede pisar una cara, ni la de quien habla ni la de quien
+  escucha. Las caras se detectan en todo el vídeo (`video/scripts/caras.py`, 4 veces por segundo) y cada elemento
+  elige automáticamente la primera posición candidata libre (`video/src/v4/caras.ts`, margen 36 px, teniendo en
+  cuenta el zoom de cámara). Los subtítulos también eligen altura libre (1390 → 1560 → 1690 → 1250 → 1100).
+- Excepción permitida: texto gigante DETRÁS de la persona (con su recorte encima); nunca delante de la cara.
+- Los momentos en que la persona habla a cámara deben verse limpios: sin grietas, destellos ni chips sobre ella, y
+  con subtítulos grandes y legibles.
+- Foto de la pantalla final: boca cerrada, mirando a cámara, ojos abiertos (`video/scripts/mejor_foto.py`);
+  archivo actual `video/public/marca/avatar.jpg`.
