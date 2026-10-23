@@ -5,18 +5,27 @@ import { AZ, DEGRADADO, FUENTE } from "./paleta";
 import { backOut, ip } from "./util";
 
 export type Modo = "video" | "claro" | "oscuro";
-export type Bloque3 = Bloque & { modo: Modo; y: number; oculto?: boolean; pill?: "azul" | "hielo" };
+export type Pill = "azul" | "hielo" | "aqua" | "sol";
+export type Bloque3 = Bloque & { modo: Modo; y: number; oculto?: boolean; pill?: Pill };
+// Píldoras extra (v7): turquesa y amarillo sol como contraste.
+const PILLS: Record<Pill, { fondo: string; texto: string; sombra: string; rot: string }> = {
+  azul: { fondo: DEGRADADO, texto: "#fff", sombra: "0 14px 40px rgba(14,86,246,0.45)", rot: "-2deg" },
+  hielo: { fondo: `linear-gradient(100deg, #ffffff, ${AZ.hielo})`, texto: AZ.marino, sombra: "0 14px 40px rgba(4,11,31,0.35)", rot: "2deg" },
+  aqua: { fondo: "linear-gradient(100deg, #0e56f6 0%, #0fb5d6 55%, #19e3c8 100%)", texto: "#fff", sombra: "0 14px 40px rgba(25,227,200,0.45)", rot: "-2deg" },
+  sol: { fondo: "linear-gradient(100deg, #ffd84d, #ffb21f)", texto: AZ.marino, sombra: "0 14px 40px rgba(255,178,31,0.5)", rot: "2deg" },
+};
 
-const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: number; salida: number; pillTipo?: "azul" | "hielo" }> = ({ p, modo, t, fps, salida, pillTipo = "azul" }) => {
+const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: number; salida: number; pillTipo?: Pill }> = ({ p, modo, t, fps, salida, pillTipo = "azul" }) => {
   const f = (t - p.inicio) * fps;
   const tam = Math.min(108, 820 / (0.62 * p.texto.length));
   const enVideo = modo === "video";
   const pill = ip(f, [0, 5], [0, 1], backOut(1.2));
-  const color = enVideo ? (pillTipo === "hielo" ? AZ.marino : "#fff") : modo === "claro" ? AZ.real : AZ.cian;
+  const pp = PILLS[pillTipo];
+  const color = enVideo ? pp.texto : modo === "claro" ? AZ.real : AZ.cian;
   return (
     <span style={{ position: "relative", display: "inline-block", padding: enVideo ? "4px 26px 10px" : 0, opacity: salida, filter: `blur(${(1 - salida) * 8}px)` }}>
       {enVideo ? (
-        <span style={{ position: "absolute", inset: 0, borderRadius: 28, background: pillTipo === "hielo" ? `linear-gradient(100deg, #ffffff, ${AZ.hielo})` : DEGRADADO, transformOrigin: "left center", scale: `${pill} 1`, rotate: pillTipo === "hielo" ? "2deg" : "-2deg", boxShadow: pillTipo === "hielo" ? "0 14px 40px rgba(4,11,31,0.35)" : "0 14px 40px rgba(14,86,246,0.45)" }} />
+        <span style={{ position: "absolute", inset: 0, borderRadius: 28, background: pp.fondo, transformOrigin: "left center", scale: `${pill} 1`, rotate: pp.rot, boxShadow: pp.sombra }} />
       ) : null}
       {Array.from(p.texto).map((c, i) => {
         const fl = f - i * 1.1;
@@ -47,7 +56,7 @@ const PalabraDestacada: React.FC<{ p: Palabra; modo: Modo; t: number; fps: numbe
   );
 };
 
-const Fila: React.FC<{ palabras: Palabra[]; modo: Modo; t: number; fps: number; salida: number; pillTipo?: "azul" | "hielo" }> = ({ palabras, modo, t, fps, salida, pillTipo }) => {
+const Fila: React.FC<{ palabras: Palabra[]; modo: Modo; t: number; fps: number; salida: number; pillTipo?: Pill }> = ({ palabras, modo, t, fps, salida, pillTipo }) => {
   if (!palabras.length) return null;
   const color = modo === "claro" ? AZ.marino : "#fff";
   return (

@@ -239,3 +239,15 @@ Estas reglas mandan sobre las secciones 1–9 cuando choquen.
   a los lados (cámara sin zoom fuerte); si no, ponerlo delante, en el pecho, nunca sobre la cara.
 - Sin anillos, ondas ni destellos centrados en la cara.
 - Cierre: "No dejes que el MIEDO decida por ti" + "Escríbeme y te asesoro".
+
+### Vídeos de viaje / vlog divertidos (aprendido en "los viejitos viajeros")
+- Paleta ampliada a pedido: azules de siempre + **turquesa/aguamarina** (#19e3c8, #0fb5d6) como segundo azul y
+  **amarillo sol** (#ffc83d) como contraste. Subtítulos con píldora turquesa y píldora sol para los remates.
+- Selfies con mucho cielo: todo el grafismo vive ARRIBA, en el cielo; los subtítulos eligen entre abajo del todo
+  y el cielo según dónde estén las caras.
+- Título gigante en el cielo DETRÁS del sombrero (recorte) al inicio y al final.
+- Cada persona presentada lleva un **sello de pasaporte** con apodo divertido (nunca encima de la cara).
+- Transiciones viajeras: avión con pancarta, barrido de nubes, efecto **postal** ("Saludos desde…") con sello.
+- Botones animados de like, campanita y suscribirse (genéricos, sin logos de marca); confeti al despedirse.
+- Vídeos de WhatsApp (360p): reescalar a 1080×1920 con lanczos + nitidez suave y zooms de cámara pequeños (≤ 1,16).
+- Cierre suave de marca: "¿Te vas de viaje? Viaja asegurado — Escríbeme y te asesoro".
